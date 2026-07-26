@@ -1,0 +1,15 @@
+# Pinned nightly toolchain for the callscope workspace.
+#
+# Only `callscope-index` needs nightly. It links the compiler through
+# `rustc_public` (the SemVer-tracked stable_mir surface), shipped in the
+# `rustc-dev` component, to read monomorphized reachability. `callscope-core`
+# and `callscope-mcp` are stable crates; they simply build under this pin too,
+# since the pin applies to the whole workspace directory.
+#
+# Bumping the date is a deliberate act: rustc-internal APIs drift between
+# nightlies, so a bump can break `callscope-index`. Keep the pin fixed until a
+# bump is tested. The generated index manifest records the exact toolchain used.
+[toolchain]
+channel = "nightly-2026-07-26"
+components = ["rustc-dev", "llvm-tools-preview", "rust-src"]
+profile = "minimal"

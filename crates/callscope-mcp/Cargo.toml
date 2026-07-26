@@ -1,0 +1,9 @@
+[package]
+name = "callscope-mcp"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+callscope-core = { workspace = true }
+# The MCP SDK (rmcp) is wired in P7, deliberately absent here to keep the P1
+# scaffold green.

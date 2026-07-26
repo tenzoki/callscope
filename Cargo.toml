@@ -1,0 +1,28 @@
+# callscope — compiler-grounded change-impact plugin for Rust workspaces.
+#
+# Three-crate workspace:
+#   - callscope-core   stable library: index schema, fingerprint, query algos,
+#                      the single output envelope. Links no compiler internals.
+#   - callscope-index  binary: the ONLY crate that links the compiler
+#                      (rustc_public / rustc-dev). Requires the nightly pin in
+#                      rust-toolchain.toml.
+#   - callscope-mcp    binary: the MCP server exposing C1–C8. Stable-only.
+[workspace]
+resolver = "2"
+members = [
+    "crates/callscope-core",
+    "crates/callscope-index",
+    "crates/callscope-mcp",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+
+[workspace.dependencies]
+# Internal crate, referenced by path so the two binaries share one core.
+callscope-core = { path = "crates/callscope-core" }
+
+# Shared third-party deps. Pinned by later tasks as they wire real code.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

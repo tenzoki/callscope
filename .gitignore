@@ -1,0 +1,16 @@
+# Rust build artifacts
+/target
+
+# rustc / rustfmt backup files
+**/*.rs.bk
+
+# On-disk callscope index directory
+.callscope/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# fusion orchestration workbench + personal scratch (not part of the shippable plugin)
+fusion-workbench/
+fusion-steps.txt

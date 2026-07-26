@@ -1,0 +1,7 @@
+[package]
+name = "callscope-index"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+callscope-core = { workspace = true }
