@@ -1,0 +1,11 @@
+# Fixture workspace — the acceptance substrate for callscope (problem.md §6).
+#
+# This is a SELF-CONTAINED cargo workspace, deliberately independent of the
+# main callscope workspace one level up (which lists it under `exclude`). It
+# exists to exercise every Rust construct the acceptance sketch enumerates —
+# generics/monomorphization, `dyn` dispatch, closures, `async fn`, macro-
+# expanded test harnesses, and reachable `unsafe` — and to make the tender's
+# guiding example (`parser::normalize_token` change impact) answerable.
+[workspace]
+resolver = "2"
+members = ["parser"]

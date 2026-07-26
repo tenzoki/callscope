@@ -1,0 +1,11 @@
+[package]
+name = "parser"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[dev-dependencies]
+# `#[tokio::test]` is the canonical macro-expanded test harness (problem.md
+# §2.4, gap 4). Minimal feature set — we only need the runtime and the macro.
+tokio = { version = "1", features = ["rt", "macros"] }

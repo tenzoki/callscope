@@ -14,6 +14,9 @@ members = [
     "crates/callscope-index",
     "crates/callscope-mcp",
 ]
+# The fixture is its own independent workspace (fixtures/workspace/Cargo.toml).
+# Exclude it so this workspace never tries to build the acceptance substrate.
+exclude = ["fixtures/workspace"]
 
 [workspace.package]
 version = "0.1.0"

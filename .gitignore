@@ -1,5 +1,7 @@
 # Rust build artifacts
 /target
+# Fixture workspace is its own cargo workspace with its own target dir.
+/fixtures/workspace/target
 
 # rustc / rustfmt backup files
 **/*.rs.bk
