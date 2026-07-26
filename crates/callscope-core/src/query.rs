@@ -335,13 +335,36 @@ impl<'a> Graph<'a> {
     // ── C4 ────────────────────────────────────────────────────────────────
 
     /// Enumerate simple call paths from `from` to `to` (C4), each at most
-    /// `max_depth` edges long, capping the count at `max_paths`. Paths are
+    /// `max_depth` edges long, returning at most `max_paths` of them. Paths are
     /// simple (no repeated node), so cycles never blow the enumeration up.
     ///
-    /// `truncated` is set when the `max_paths` cap is hit **or** a branch was cut
-    /// at `max_depth` before reaching `to` (a longer path may have been missed).
-    /// `total` is the number of paths returned. Virtual/boundary edges on the
-    /// returned paths propagate their flags.
+    /// # `total` vs `truncated` — two distinct signals for C4
+    ///
+    /// These mean different things here than in C1/C3/C5/C6, and the difference
+    /// is deliberate:
+    ///
+    /// - `total` is the number of paths **RETURNED** (i.e. after the `max_paths`
+    ///   cap), **not** a true full path count. Unlike the reachable-set queries,
+    ///   whose `total` is the exact pre-truncation size, a graph can hold an
+    ///   exponential number of simple paths, so enumerating them all just to
+    ///   count them can blow up. C4 therefore does not attempt a true total.
+    /// - `truncated` is the "more may exist" signal. It is set when the
+    ///   `max_paths` cap was **actually exceeded** — we enumerate one extra path
+    ///   (`max_paths + 1`) purely to detect this, so a result with *exactly*
+    ///   `max_paths` real paths reports `truncated = false` — **or** when a
+    ///   branch was cut at `max_depth` before reaching `to` (a longer path may
+    ///   have been missed).
+    ///
+    /// # Uncertainty flags cover every edge the enumeration touches
+    ///
+    /// Virtual (Q2 over-approximation) and boundary flags are accumulated during
+    /// the DFS as each edge is traversed — not in a post-hoc pass over the
+    /// returned paths. This matters when the cap drops a path: if a dropped path
+    /// crossed a virtual or boundary edge, that uncertainty is still reported,
+    /// rather than silently vanishing with the path. Residual limitation: once
+    /// the enumeration hits its collect cap (`max_paths + 1`) it stops exploring,
+    /// so edges reachable only along paths beyond that cap are not visited and
+    /// their flags are not folded in. `truncated` marks such answers incomplete.
     pub fn call_paths(
         &self,
         from: SymbolId,
@@ -354,32 +377,35 @@ impl<'a> Graph<'a> {
         let mut on_path: BTreeSet<SymbolId> = BTreeSet::new();
         on_path.insert(from);
         let mut depth_cut = false;
+        // Flags accumulate during traversal, so paths dropped by the cap below
+        // still contribute their virtual/boundary uncertainty.
+        let mut flags = WalkFlags::default();
+
+        // Enumerate one path beyond the cap. That extra path is what lets us tell
+        // "found exactly max_paths and nothing more" (not truncated) from "more
+        // exist" (truncated) without enumerating a possibly-exponential full set.
+        let collect_cap = max_paths.saturating_add(1);
 
         self.dfs_paths(
             from,
             to,
             max_depth,
-            max_paths,
+            collect_cap,
             &mut current,
             &mut on_path,
             &mut paths,
             &mut depth_cut,
+            &mut flags,
         );
 
-        let hit_cap = paths.len() >= max_paths;
+        // We collected up to max_paths + 1; more than max_paths means the cap
+        // genuinely cut the result short.
+        let hit_cap = paths.len() > max_paths;
 
-        // Deterministic order: sort paths by their fq_path sequence.
+        // Deterministic order: sort paths by their fq_path sequence, then keep
+        // only the first max_paths (dropping the probe path, and any excess).
         paths.sort_by(|a, b| self.path_key(a).cmp(&self.path_key(b)));
-
-        // Flags come from the edges actually used by the returned paths.
-        let mut flags = WalkFlags::default();
-        for path in &paths {
-            for window in path.windows(2) {
-                if let Some(edge) = self.find_edge(window[0], window[1]) {
-                    self.note_edge(edge, &mut flags);
-                }
-            }
-        }
+        paths.truncate(max_paths);
 
         let data: Vec<CallPath> = paths
             .into_iter()
@@ -390,6 +416,8 @@ impl<'a> Graph<'a> {
                     .collect(),
             })
             .collect();
+        // `total` is the RETURNED count (see the doc comment); `truncated` is the
+        // independent "more may exist" signal.
         let total = data.len();
         let env = Envelope::exact(data)
             .with_total(total)
@@ -403,13 +431,14 @@ impl<'a> Graph<'a> {
         node: SymbolId,
         target: SymbolId,
         max_depth: usize,
-        max_paths: usize,
+        collect_cap: usize,
         current: &mut Vec<SymbolId>,
         on_path: &mut BTreeSet<SymbolId>,
         paths: &mut Vec<Vec<SymbolId>>,
         depth_cut: &mut bool,
+        flags: &mut WalkFlags,
     ) {
-        if paths.len() >= max_paths {
+        if paths.len() >= collect_cap {
             return;
         }
         if node == target && current.len() > 1 {
@@ -425,6 +454,9 @@ impl<'a> Graph<'a> {
             return;
         }
         for edge in self.edges(node, Direction::Forward) {
+            // Note every edge the enumeration traverses, so uncertainty is
+            // captured independent of whether this path survives the cap.
+            self.note_edge(edge, flags);
             let next = edge.to;
             if on_path.contains(&next) {
                 continue; // keep the path simple; skip cycles
@@ -435,11 +467,11 @@ impl<'a> Graph<'a> {
             current.push(next);
             on_path.insert(next);
             self.dfs_paths(
-                next, target, max_depth, max_paths, current, on_path, paths, depth_cut,
+                next, target, max_depth, collect_cap, current, on_path, paths, depth_cut, flags,
             );
             on_path.remove(&next);
             current.pop();
-            if paths.len() >= max_paths {
+            if paths.len() >= collect_cap {
                 return;
             }
         }
@@ -455,13 +487,6 @@ impl<'a> Graph<'a> {
                     .unwrap_or_default()
             })
             .collect()
-    }
-
-    /// Find the edge `from -> to`, if one exists.
-    fn find_edge(&self, from: SymbolId, to: SymbolId) -> Option<&'a Edge> {
-        self.forward
-            .get(&from)
-            .and_then(|edges| edges.iter().find(|e| e.to == to).copied())
     }
 
     // ── C5 ────────────────────────────────────────────────────────────────
@@ -875,6 +900,87 @@ mod tests {
         let env = g.call_paths(id("k::a"), id("k::b"), 10, 100);
         assert_eq!(env.total, 1);
         assert!(env.over_approximated.is_some());
+    }
+
+    #[test]
+    fn call_paths_exactly_max_paths_is_not_truncated() {
+        // Exactly two paths a..d; asking for max_paths=2 must return both and
+        // report truncated=false — the count equals the cap, nothing was dropped.
+        let idx = index(
+            vec![sym("k::a"), sym("k::b"), sym("k::c"), sym("k::d")],
+            vec![
+                stat("k::a", "k::b"),
+                stat("k::b", "k::d"),
+                stat("k::a", "k::c"),
+                stat("k::c", "k::d"),
+            ],
+        );
+        let g = Graph::new(&idx);
+        let env = g.call_paths(id("k::a"), id("k::d"), 10, 2);
+        assert_eq!(env.data.len(), 2, "both paths returned");
+        assert_eq!(env.total, 2);
+        assert!(
+            !env.truncated,
+            "count equals the cap but nothing was dropped, so not truncated",
+        );
+    }
+
+    #[test]
+    fn call_paths_over_max_paths_truncates_and_returns_exactly_cap() {
+        // Three paths a..d (via b, c, e); max_paths=2 must return exactly 2 and
+        // report truncated=true.
+        let idx = index(
+            vec![
+                sym("k::a"),
+                sym("k::b"),
+                sym("k::c"),
+                sym("k::d"),
+                sym("k::e"),
+            ],
+            vec![
+                stat("k::a", "k::b"),
+                stat("k::b", "k::d"),
+                stat("k::a", "k::c"),
+                stat("k::c", "k::d"),
+                stat("k::a", "k::e"),
+                stat("k::e", "k::d"),
+            ],
+        );
+        let g = Graph::new(&idx);
+        let env = g.call_paths(id("k::a"), id("k::d"), 10, 2);
+        assert_eq!(env.data.len(), 2, "returns exactly max_paths");
+        assert_eq!(env.total, 2, "total is the returned count");
+        assert!(env.truncated, "a third path exists beyond the cap");
+    }
+
+    #[test]
+    fn call_paths_truncated_still_flags_virtual_edge_on_dropped_path() {
+        // Two paths a..d. The kept path (a->b->d, sorts first) is all-static; the
+        // dropped path (a->c->d) crosses a Virtual edge c->d. With max_paths=1 the
+        // virtual-carrying path is dropped, yet over-approximation must still be
+        // reported — flags are accumulated during the walk, not off survivors.
+        let idx = index(
+            vec![sym("k::a"), sym("k::b"), sym("k::c"), sym("k::d")],
+            vec![
+                stat("k::a", "k::b"),
+                stat("k::b", "k::d"),
+                stat("k::a", "k::c"),
+                edge("k::c", "k::d", EdgeKind::Virtual),
+            ],
+        );
+        let g = Graph::new(&idx);
+        let env = g.call_paths(id("k::a"), id("k::d"), 10, 1);
+        assert_eq!(env.data.len(), 1, "only max_paths returned");
+        assert_eq!(
+            fq_paths(&env.data[0].nodes),
+            vec!["k::a", "k::b", "k::d"],
+            "the kept path is the all-static one",
+        );
+        assert!(env.truncated, "a second path was dropped");
+        assert!(
+            env.over_approximated.is_some(),
+            "the dropped path's virtual edge must still surface as over-approximation",
+        );
     }
 
     // ── cycles ────────────────────────────────────────────────────────────────
