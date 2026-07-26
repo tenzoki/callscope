@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "callscope": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/target/release/callscope-mcp",
+      "args": [],
+      "env": {
+        "CALLSCOPE_WORKSPACE": "${CALLSCOPE_WORKSPACE}"
+      }
+    }
+  }
+}

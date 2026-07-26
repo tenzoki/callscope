@@ -1,0 +1,21 @@
+{
+  "name": "callscope",
+  "version": "0.1.0",
+  "description": "Compiler-grounded change-impact answers for Rust cargo workspaces: who calls a function, what it reaches, and exactly which tests to run before you edit. Resolves what the compiled program executes (generics, dyn dispatch, closures, async, macro-expanded tests), not names in source text.",
+  "author": {
+    "name": "Kai",
+    "email": "kai@stalmann.org"
+  },
+  "keywords": [
+    "rust",
+    "cargo",
+    "change-impact",
+    "call-graph",
+    "reachability",
+    "mcp",
+    "static-analysis"
+  ],
+  "skills": [
+    "./skills/callscope"
+  ]
+}
