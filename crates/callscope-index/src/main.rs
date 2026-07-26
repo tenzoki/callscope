@@ -31,9 +31,9 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::process::{Command, ExitCode};
 
-use callscope_core::{fingerprint, Edge, Index, Symbol, SymbolId, SCHEMA_VERSION};
+use callscope_core::{fingerprint, Edge, EdgeKind, Index, Symbol, SymbolId, SCHEMA_VERSION};
 
-use crate::graph_build::Fragment;
+use crate::graph_build::{DynCall, Fragment, ImplMethodFact};
 
 /// Sysroot of the pinned toolchain, baked in by `build.rs`.
 const SYSROOT: &str = env!("CALLSCOPE_SYSROOT");
@@ -185,8 +185,13 @@ fn merge(fragments: Vec<Fragment>) -> Result<(Vec<Symbol>, Vec<Edge>), String> {
     let mut collisions: Vec<(u64, String, String)> = Vec::new();
     let mut edge_seen: std::collections::HashSet<(u64, u64, u8)> = std::collections::HashSet::new();
     let mut edges: Vec<Edge> = Vec::new();
+    // Collected across all fragments for the workspace-wide `dyn` join below.
+    let mut dyn_calls: Vec<DynCall> = Vec::new();
+    let mut impl_methods: Vec<ImplMethodFact> = Vec::new();
 
     for frag in fragments {
+        dyn_calls.extend(frag.dyn_calls);
+        impl_methods.extend(frag.impl_methods);
         for sym in frag.symbols {
             match symbols.get(&sym.id) {
                 Some(existing) if existing.fq_path != sym.fq_path => {
@@ -235,12 +240,68 @@ fn merge(fragments: Vec<Fragment>) -> Result<(Vec<Symbol>, Vec<Edge>), String> {
         return Err(msg);
     }
 
+    // ── `dyn` over-approximation: workspace-wide implementor join (gap 2) ──
+    //
+    // Each `dyn`/unresolved trait-method call site (`DynCall`) is widened to
+    // every implementor of that `(trait, method)` across the WHOLE workspace —
+    // not just the call site's own crate. This is what closes the two
+    // real-workspace gaps: implementors in a different member crate are visible
+    // because every crate's `ImplMethodFact`s are collected here, and generic
+    // implementors are included because they were inventoried by their
+    // polymorphic method name (walked once, un-monomorphized, in the defining
+    // crate). Every synthesised edge is `Virtual`, so the query layer flags the
+    // answer over-approximated and counts these implementors honestly.
+    //
+    // The count stays honest by construction: one `Virtual` edge per distinct
+    // (owner, implementor-method), and `query.rs` derives `implementor_count`
+    // from the distinct virtual-edge targets a walk folds in. No exact claim is
+    // made — a generic implementor's edge points at its generic method symbol
+    // (flagged `generic`), which is a superset representative, never a false
+    // monomorphized certainty.
+    let mut impls_by_key: HashMap<(&str, &str), Vec<&ImplMethodFact>> = HashMap::new();
+    for fact in &impl_methods {
+        impls_by_key
+            .entry((fact.trait_path.as_str(), fact.method.as_str()))
+            .or_default()
+            .push(fact);
+    }
+    for call in &dyn_calls {
+        let Some(facts) = impls_by_key.get(&(call.trait_path.as_str(), call.method.as_str()))
+        else {
+            continue;
+        };
+        for fact in facts {
+            let to = SymbolId::from_fq_path(&fact.fq_path);
+            if edge_seen.insert((call.owner.0, to.0, 1u8)) {
+                edges.push(Edge {
+                    from: call.owner,
+                    to,
+                    kind: EdgeKind::Virtual,
+                });
+            }
+        }
+    }
+
     // Keep only edges that originate from a known workspace symbol. A missing
     // `from` cannot happen (we only emit edges from walked symbols), but this
     // keeps the invariant explicit; the `to` end is intentionally left dangling
     // when it crosses the workspace boundary, which the query layer reads as a
     // boundary crossing.
     edges.retain(|e| symbols.contains_key(&e.from));
+
+    // Sort edges for a byte-deterministic index. The edge SET is already fixed
+    // by the cold rebuild, but its order otherwise follows fragment read order
+    // (filesystem-dependent) and the merge-time join's hash-map iteration, so
+    // without this the artifact's bytes vary run to run. Query results do not
+    // depend on this (the query layer re-sorts adjacency), but a stable artifact
+    // is what the orchestrator's "deterministic index" contract promises.
+    let disc = |k: callscope_core::EdgeKind| match k {
+        callscope_core::EdgeKind::Static => 0u8,
+        callscope_core::EdgeKind::Virtual => 1u8,
+    };
+    edges.sort_by(|a, b| {
+        (a.from.0, a.to.0, disc(a.kind)).cmp(&(b.from.0, b.to.0, disc(b.kind)))
+    });
 
     let mut symbols: Vec<Symbol> = symbols.into_values().collect();
     symbols.sort_by(|a, b| (a.fq_path.as_str(), a.id.0).cmp(&(b.fq_path.as_str(), b.id.0)));
@@ -251,7 +312,7 @@ fn merge(fragments: Vec<Fragment>) -> Result<(Vec<Symbol>, Vec<Edge>), String> {
 mod tests {
     use super::*;
     use callscope_core::{Characteristics, Span};
-    use crate::graph_build::Fragment;
+    use crate::graph_build::{DynCall, Fragment, ImplMethodFact};
 
     fn sym(id: u64, fq: &str) -> Symbol {
         Symbol {
@@ -275,10 +336,12 @@ mod tests {
         let frag_a = Fragment {
             symbols: vec![sym(colliding_id, "crate_a::alpha")],
             edges: vec![],
+            ..Default::default()
         };
         let frag_b = Fragment {
             symbols: vec![sym(colliding_id, "crate_b::beta")],
             edges: vec![],
+            ..Default::default()
         };
         let err = merge(vec![frag_a, frag_b]).expect_err("collision must fail the build");
         assert!(err.contains("collision"), "diagnostic must mention collision: {err}");
@@ -295,10 +358,95 @@ mod tests {
         a.characteristics.test = true; // visible only in the --test compilation
         let b = sym(id, "crate::f"); // uses_unsafe/public seen elsewhere
         let (symbols, _edges) =
-            merge(vec![Fragment { symbols: vec![a], edges: vec![] },
-                      Fragment { symbols: vec![b], edges: vec![] }])
+            merge(vec![Fragment { symbols: vec![a], edges: vec![], ..Default::default() },
+                      Fragment { symbols: vec![b], edges: vec![], ..Default::default() }])
                 .expect("same symbol twice is not a collision");
         assert_eq!(symbols.len(), 1);
         assert!(symbols[0].characteristics.test, "characteristics must union");
+    }
+
+    /// The `dyn` over-approximation join is workspace-wide (gap 2): a `DynCall`
+    /// in one crate's fragment must widen to implementors inventoried in *other*
+    /// crates' fragments, and to a *generic* implementor, each as a `Virtual`
+    /// edge. This is the merge-time half of the two closed dyn-dispatch gaps.
+    #[test]
+    fn merge_joins_dyn_calls_to_all_workspace_implementors() {
+        // Fragment A (crate "app"): the `&dyn Tokenizer` call site in `run_dyn`,
+        // plus one same-crate non-generic implementor and one generic one.
+        // Symbols must carry the same content-addressed id the join derives from
+        // their fq_path (that is how a `DynCall.owner` matches its symbol).
+        let symf = |fq: &str| {
+            let mut s = sym(0, fq);
+            s.id = SymbolId::from_fq_path(fq);
+            s
+        };
+        let frag_app = Fragment {
+            symbols: vec![
+                symf("app::run_dyn"),
+                symf("<app::Simple as app::Tokenizer>::tokenize"),
+                symf("<app::Wrapper<T> as app::Tokenizer>::tokenize"),
+            ],
+            edges: vec![],
+            dyn_calls: vec![DynCall {
+                owner: SymbolId::from_fq_path("app::run_dyn"),
+                trait_path: "app::Tokenizer".to_string(),
+                method: "tokenize".to_string(),
+            }],
+            impl_methods: vec![
+                ImplMethodFact {
+                    trait_path: "app::Tokenizer".to_string(),
+                    method: "tokenize".to_string(),
+                    fq_path: "<app::Simple as app::Tokenizer>::tokenize".to_string(),
+                    generic: false,
+                },
+                ImplMethodFact {
+                    trait_path: "app::Tokenizer".to_string(),
+                    method: "tokenize".to_string(),
+                    fq_path: "<app::Wrapper<T> as app::Tokenizer>::tokenize".to_string(),
+                    generic: true,
+                },
+            ],
+        };
+        // Fragment B (a DIFFERENT member crate "ext"): a cross-crate implementor
+        // of `app`'s trait. It carries no `DynCall`; only its inventory.
+        let frag_ext = Fragment {
+            symbols: vec![symf("<ext::Shouty as app::Tokenizer>::tokenize")],
+            edges: vec![],
+            dyn_calls: vec![],
+            impl_methods: vec![ImplMethodFact {
+                trait_path: "app::Tokenizer".to_string(),
+                method: "tokenize".to_string(),
+                fq_path: "<ext::Shouty as app::Tokenizer>::tokenize".to_string(),
+                generic: false,
+            }],
+        };
+
+        let (_symbols, edges) =
+            merge(vec![frag_app, frag_ext]).expect("no collisions");
+
+        let owner = SymbolId::from_fq_path("app::run_dyn");
+        let virtual_targets: std::collections::HashSet<SymbolId> = edges
+            .iter()
+            .filter(|e| e.from == owner && e.kind == EdgeKind::Virtual)
+            .map(|e| e.to)
+            .collect();
+
+        // All three implementors — same-crate, generic, AND cross-crate — must
+        // be widened to, each via a Virtual edge.
+        for fq in [
+            "<app::Simple as app::Tokenizer>::tokenize",
+            "<app::Wrapper<T> as app::Tokenizer>::tokenize",
+            "<ext::Shouty as app::Tokenizer>::tokenize",
+        ] {
+            assert!(
+                virtual_targets.contains(&SymbolId::from_fq_path(fq)),
+                "dyn over-approximation must include implementor {fq}",
+            );
+        }
+        assert_eq!(
+            virtual_targets.len(),
+            3,
+            "exactly the three workspace implementors, no more, no fewer",
+        );
     }
 }

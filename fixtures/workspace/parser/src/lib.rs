@@ -9,14 +9,30 @@
 //! Reachability map (what actually calls `normalize_token` at run time):
 //!
 //! ```text
-//!   normalize_token  ← Simple::tokenize   (via a closure body — gap 3)
+//!   normalize_token  ← Simple::tokenize     (via a closure body — gap 3)
 //!                    ← Fancy::tokenize
+//!                    ← Wrapper<T>::tokenize  (generic implementor — gap 2b)
+//!                    ← Shouty::tokenize       (cross-crate implementor, in
+//!                                              the `ext_tokenizer` member — gap 2c)
 //!                         ↑
-//!   run_generic<T>  ─ t.tokenize ─┘        (monomorphized per T — gap 1)
+//!   run_generic<T>  ─ t.tokenize ─┘          (monomorphized per T — gap 1)
 //!   run_dyn         ─ (&dyn Tokenizer).tokenize  (virtual dispatch — gap 2)
 //!   tokenize_async  ─ run_generic(&Simple, ..)   (async body — gap 3)
 //!   normalize_token ─ ensure_round_trip           (reachable `unsafe` — C6)
 //! ```
+//!
+//! The `dyn` over-approximation (gap 2) must widen a `&dyn Tokenizer` call to
+//! *every* workspace implementor of `Tokenizer`. Two shapes stress that
+//! promise beyond the trivial same-crate, non-generic implementors
+//! (`Simple`/`Fancy`):
+//!
+//! - **`Wrapper<T>`** — a *generic* implementor (`impl<T: Tokenizer> Tokenizer
+//!   for Wrapper<T>`). An over-approximation that resolves impl methods with
+//!   empty generic arguments drops it silently; the honest answer must still
+//!   include it.
+//! - **`ext_tokenizer::Shouty`** — an implementor defined in a *different*
+//!   workspace member crate than the trait and the `&dyn` call site. An
+//!   over-approximation that only enumerates the local crate's impls misses it.
 
 /// THE guiding-example target function (`problem.md` §2).
 ///
@@ -80,6 +96,26 @@ impl Tokenizer for Fancy {
     }
 }
 
+/// Generic implementor (gap 2b — the `dyn` over-approximation must include a
+/// *generic* implementor, `impl<T> Tokenizer for Wrapper<T>`). Wraps an inner
+/// tokenizer, delegates to it, and re-normalizes each token — so
+/// `Wrapper<T>::tokenize` reaches [`normalize_token`] for every `T`.
+///
+/// It is exercised behind `&dyn Tokenizer` (see `reaches_via_dyn_wrapper`),
+/// which coerces a concrete `Wrapper<Simple>` and so monomorphizes
+/// `<Wrapper<Simple> as Tokenizer>::tokenize`.
+pub struct Wrapper<T>(pub T);
+
+impl<T: Tokenizer> Tokenizer for Wrapper<T> {
+    fn tokenize(&self, input: &str) -> Vec<String> {
+        self.0
+            .tokenize(input)
+            .iter()
+            .map(|t| normalize_token(t))
+            .collect()
+    }
+}
+
 /// Generic entry point — the **monomorphization** site (gap 1). The single
 /// source call `t.tokenize(input)` compiles to one concrete call per `T`, so a
 /// caller instantiating `run_generic::<Simple>` thereby reaches
@@ -127,6 +163,19 @@ mod tests {
     fn reaches_via_dyn_dispatch() {
         let boxed: &dyn Tokenizer = &Fancy;
         let out = run_dyn(boxed, "Foo, Bar");
+        assert_eq!(out, vec!["foo", "bar"]);
+    }
+
+    /// Reaches the target through `dyn` dispatch over a **generic implementor**
+    /// (`Wrapper<Simple>`). Coercing `&Wrapper<Simple>` to `&dyn Tokenizer`
+    /// monomorphizes `<Wrapper<Simple> as Tokenizer>::tokenize`, whose body
+    /// reaches `normalize_token`. A `dyn` over-approximation that drops generic
+    /// implementors would miss this path.
+    #[test]
+    fn reaches_via_dyn_wrapper() {
+        let w = Wrapper(Simple);
+        let boxed: &dyn Tokenizer = &w;
+        let out = run_dyn(boxed, "Foo Bar");
         assert_eq!(out, vec!["foo", "bar"]);
     }
 

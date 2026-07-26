@@ -17,9 +17,17 @@
 //!   is the symbol id, so edges join up across crate fragments by content.
 //! - **Gap 2 (`dyn` dispatch).** When resolution yields an
 //!   [`InstanceKind::Virtual`] callee (or a trait-method call that cannot be
-//!   resolved to one concrete impl), the callee is over-approximated to every
-//!   workspace implementor of the trait, and each edge is tagged
-//!   [`EdgeKind::Virtual`] so the query layer flags the answer.
+//!   resolved to one concrete impl), the call site is recorded as a [`DynCall`]
+//!   and this crate's trait implementors are inventoried as [`ImplMethodFact`]s.
+//!   The over-approximation — a [`EdgeKind::Virtual`] edge to every workspace
+//!   implementor of the trait — is synthesised in the orchestrator's `merge`,
+//!   where all crates' facts coexist. Doing it there rather than per crate is
+//!   what lets the widened set include implementors defined in *other*
+//!   workspace members (a per-crate enumeration sees only `local_crate`). A
+//!   *generic* implementor (`impl<T> Trait for Wrapper<T>`) has no concrete
+//!   instance to resolve at the `dyn` site, so its polymorphic body is walked
+//!   once (via [`FnDef::body`], which does not monomorphize) and the edge points
+//!   at that generic method symbol, flagged `generic`.
 //! - **Gap 3 (closure / async bodies).** A closure or coroutine body is folded
 //!   into its enclosing user function: its calls are attributed to the parent
 //!   symbol, not to an anonymous closure symbol.
@@ -44,11 +52,55 @@ use serde::{Deserialize, Serialize};
 
 use callscope_core::{Characteristics, Edge, EdgeKind, Span, Symbol, SymbolId};
 
+/// A `&dyn Trait` (or otherwise unresolved trait-method) call site: the owner
+/// function, the dispatched trait, and the method. Recorded per crate; the
+/// implementor enumeration is deferred to the orchestrator's `merge`, where
+/// every workspace crate's implementors are visible at once (this is what makes
+/// the over-approximation cover implementors defined in *other* member crates).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DynCall {
+    pub owner: SymbolId,
+    /// Fully-qualified path of the dispatched trait, e.g. `parser::Tokenizer`.
+    pub trait_path: String,
+    /// The trait method's name, e.g. `tokenize`.
+    pub method: String,
+}
+
+/// One `(trait, method)` implementor this crate defines: the concrete or
+/// generic method symbol the `dyn` over-approximation must widen to. Collected
+/// per crate so `merge` can join every crate's implementors against every
+/// crate's [`DynCall`]s.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ImplMethodFact {
+    /// Fully-qualified path of the implemented trait, e.g. `parser::Tokenizer`.
+    pub trait_path: String,
+    pub method: String,
+    /// Fully-qualified path of the implementor's method symbol. For a
+    /// non-generic impl this is the resolved concrete instance name (e.g.
+    /// `<parser::Simple as parser::Tokenizer>::tokenize`); for a generic impl
+    /// it is the polymorphic method name (e.g.
+    /// `<parser::Wrapper<T> as parser::Tokenizer>::tokenize`).
+    pub fq_path: String,
+    /// True when the implementor is generic (`impl<T> Trait for Wrapper<T>`).
+    /// The over-approximation still includes it, walked from its polymorphic
+    /// body; this flag records that its reachability is over one representative
+    /// (un-monomorphized) body rather than every concrete instantiation.
+    pub generic: bool,
+}
+
 /// The symbols and edges extracted from one crate compilation.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Fragment {
     pub symbols: Vec<Symbol>,
     pub edges: Vec<Edge>,
+    /// `dyn`/unresolved trait-method call sites, resolved to implementor edges
+    /// at `merge` time (gap 2, cross-crate).
+    #[serde(default)]
+    pub dyn_calls: Vec<DynCall>,
+    /// This crate's trait-implementor inventory, joined against `dyn_calls` at
+    /// `merge` time.
+    #[serde(default)]
+    pub impl_methods: Vec<ImplMethodFact>,
 }
 
 /// Extract a [`Fragment`] from the crate currently being compiled.
@@ -84,6 +136,11 @@ struct Builder<'tcx> {
     /// `tests::normalizes_directly`), harvested from the harness-generated
     /// `#[rustc_test_marker]` consts. See [`Builder::collect_test_markers`].
     test_paths: HashSet<String>,
+    /// `dyn`/unresolved trait-method call sites, deduplicated by
+    /// (owner, trait, method). Resolved to implementor edges at `merge` time.
+    dyn_calls: HashSet<DynCall>,
+    /// This crate's trait-implementor inventory (deduplicated).
+    impl_methods: HashSet<ImplMethodFact>,
 }
 
 impl<'tcx> Builder<'tcx> {
@@ -97,6 +154,8 @@ impl<'tcx> Builder<'tcx> {
             folded: HashSet::new(),
             queue: VecDeque::new(),
             test_paths: HashSet::new(),
+            dyn_calls: HashSet::new(),
+            impl_methods: HashSet::new(),
         }
     }
 
@@ -104,18 +163,27 @@ impl<'tcx> Builder<'tcx> {
         Fragment {
             symbols: self.symbols.into_values().collect(),
             edges: self.edge_list,
+            dyn_calls: self.dyn_calls.into_iter().collect(),
+            impl_methods: self.impl_methods.into_iter().collect(),
         }
     }
 
     /// Seed roots (every non-generic local function) and drain the worklist.
     fn run(&mut self) {
         self.collect_test_markers();
+        // Build this crate's trait-implementor inventory and seed the walk of
+        // any generic implementor's polymorphic body (gap 1/2b). Non-generic
+        // implementor methods are picked up as ordinary roots below.
+        self.collect_impls();
         for item in all_local_items() {
             if item.kind() != ItemKind::Fn {
                 continue;
             }
             // Generic definitions are not roots; they enter the graph only as
-            // concrete instances resolved at a call site (gap 1).
+            // concrete instances resolved at a call site (gap 1) — except a
+            // generic trait-impl method, which `collect_impls` has already
+            // seeded from its polymorphic body so the `dyn` over-approximation
+            // can reach it.
             if item.requires_monomorphization() {
                 continue;
             }
@@ -126,6 +194,96 @@ impl<'tcx> Builder<'tcx> {
         while let Some(inst) = self.queue.pop_front() {
             self.walk_instance(inst);
         }
+    }
+
+    /// Enumerate every trait impl in this crate, recording an [`ImplMethodFact`]
+    /// per method for the merge-time `dyn` join, and walking the polymorphic
+    /// body of each *generic* implementor method so its onward reachability is
+    /// captured (a generic impl has no concrete instance to resolve at the
+    /// `dyn` site, so its body is walked once, un-monomorphized).
+    fn collect_impls(&mut self) {
+        for impl_def in local_crate().trait_impls() {
+            let tr = impl_def.trait_impl();
+            let trait_path = tr.value.def_id.name();
+            let is_generic = !impl_def.generics_of().params.is_empty();
+            for ai in impl_def.associated_items() {
+                let AssocKind::Fn { name, .. } = &ai.kind else {
+                    continue;
+                };
+                let impl_fn = FnDef(ai.def_id.def_id());
+                if is_generic {
+                    // Polymorphic implementor: name it by its def path (e.g.
+                    // `<parser::Wrapper<T> as parser::Tokenizer>::tokenize`) and
+                    // walk its un-monomorphized body. `Instance::resolve` with
+                    // empty args would either fail or return a polymorphic
+                    // instance whose `body()` panics, so it is never used here.
+                    let fq = impl_fn.def_id().name();
+                    self.impl_methods.insert(ImplMethodFact {
+                        trait_path: trait_path.clone(),
+                        method: name.clone(),
+                        fq_path: fq.clone(),
+                        generic: true,
+                    });
+                    self.walk_generic_method(impl_fn, fq);
+                } else if let Ok(inst) = Instance::resolve(impl_fn, &GenericArgs(vec![])) {
+                    // Non-generic implementor: the concrete instance is also an
+                    // ordinary root, so it is walked anyway; record its resolved
+                    // name so the merge join points at the same symbol.
+                    self.impl_methods.insert(ImplMethodFact {
+                        trait_path: trait_path.clone(),
+                        method: name.clone(),
+                        fq_path: inst.name(),
+                        generic: false,
+                    });
+                    if is_local_instance(&inst) {
+                        self.enqueue(inst);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Walk a generic trait-impl method from its polymorphic MIR body, recording
+    /// a symbol (flagged `generic`) and every edge its body implies. Uses
+    /// [`FnDef::body`] (the item-level `mir_body`), which — unlike
+    /// [`Instance::body`] — does not monomorphize and so does not panic on a
+    /// body with free type parameters.
+    fn walk_generic_method(&mut self, impl_fn: FnDef, name: String) {
+        if !self.walked.insert(name.clone()) {
+            return;
+        }
+        let id = SymbolId::from_fq_path(&name);
+        let def_id = impl_fn.def_id();
+        let mut characteristics = Characteristics {
+            test: self.is_test(&name),
+            public: self.is_public(def_id),
+            is_async: impl_fn.asyncness().is_async(),
+            generic: true,
+            foreign: false,
+            uses_unsafe: fn_sig_is_unsafe(impl_fn),
+        };
+        let Some(body) = impl_fn.body() else {
+            // No body available: still record the symbol so the over-
+            // approximation names it (visible, not a silent drop).
+            self.symbols.entry(name.clone()).or_insert(Symbol {
+                id,
+                fq_path: name.clone(),
+                crate_name: local_crate().name,
+                span: span_of(def_id),
+                characteristics,
+            });
+            return;
+        };
+        let mut uses_unsafe = false;
+        self.walk_body(&body, id, &mut uses_unsafe);
+        characteristics.uses_unsafe |= uses_unsafe;
+        self.symbols.entry(name.clone()).or_insert(Symbol {
+            id,
+            fq_path: name.clone(),
+            crate_name: local_crate().name,
+            span: span_of(def_id),
+            characteristics,
+        });
     }
 
     /// Enqueue an instance for walking if we have not seen it and it has a body.
@@ -261,50 +419,43 @@ impl<'tcx> Builder<'tcx> {
             }
             Ok(_) => {
                 // Resolved to a virtual (vtable) instance: a `dyn` call.
-                self.emit_virtual(fndef, owner);
+                self.record_dyn_call(fndef, owner);
             }
             Err(_) => {
                 // Could not resolve to one concrete instance. If this is a trait
                 // method, treat it as a `dyn`/over-approximated call (gap 2);
                 // otherwise it is a call we cannot ground, so we drop it.
                 if fndef.associated_item().is_some() {
-                    self.emit_virtual(fndef, owner);
+                    self.record_dyn_call(fndef, owner);
                 }
             }
         }
     }
 
-    /// Over-approximate a `dyn`/unresolved trait-method call to every workspace
-    /// implementor of the trait, each as a [`EdgeKind::Virtual`] edge (gap 2).
-    fn emit_virtual(&mut self, trait_method: FnDef, owner: SymbolId) {
-        let Some(assoc) = trait_method.associated_item() else { return };
-        let method_name = match &assoc.kind {
+    /// Record a `dyn`/unresolved trait-method call site for the merge-time
+    /// implementor join (gap 2). The implementor set is deliberately NOT
+    /// enumerated here: doing so per crate would see only this crate's
+    /// implementors and silently miss any defined in another workspace member.
+    /// The orchestrator's `merge` joins every [`DynCall`] against every crate's
+    /// [`ImplMethodFact`]s, so a `&dyn Trait` call widens to the trait's
+    /// implementors workspace-wide.
+    fn record_dyn_call(&mut self, trait_method: FnDef, owner: SymbolId) {
+        let Some(assoc) = trait_method.associated_item() else {
+            return;
+        };
+        let method = match &assoc.kind {
             AssocKind::Fn { name, .. } => name.clone(),
             _ => return,
         };
         // The trait is the parent definition of the trait method.
-        let Some(trait_did) = trait_method.def_id().parent() else { return };
-
-        for impl_def in local_crate().trait_impls() {
-            let tr = impl_def.trait_impl();
-            if tr.value.def_id.def_id() != trait_did {
-                continue;
-            }
-            for ai in impl_def.associated_items() {
-                let AssocKind::Fn { name, .. } = &ai.kind else { continue };
-                if *name != method_name {
-                    continue;
-                }
-                let impl_fn = FnDef(ai.def_id.def_id());
-                if let Ok(inst) = Instance::resolve(impl_fn, &GenericArgs(vec![])) {
-                    let to = SymbolId::from_fq_path(&inst.name());
-                    self.add_edge(owner, to, EdgeKind::Virtual);
-                    if is_local_instance(&inst) {
-                        self.enqueue(inst);
-                    }
-                }
-            }
-        }
+        let Some(trait_did) = trait_method.def_id().parent() else {
+            return;
+        };
+        self.dyn_calls.insert(DynCall {
+            owner,
+            trait_path: trait_did.name(),
+            method,
+        });
     }
 
     fn add_edge(&mut self, from: SymbolId, to: SymbolId, kind: EdgeKind) {

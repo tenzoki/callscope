@@ -1,0 +1,12 @@
+[package]
+name = "ext_tokenizer"
+version = "0.1.0"
+edition = "2021"
+
+# A SECOND workspace member that implements `parser`'s `Tokenizer` trait. It
+# exists to exercise the cross-crate half of the `dyn` over-approximation (gap
+# 2c): the trait and the `&dyn Tokenizer` call site live in `parser`, the
+# implementor `Shouty` lives here, so a workspace-wide implementor scan is
+# required to connect them.
+[dependencies]
+parser = { path = "../parser" }

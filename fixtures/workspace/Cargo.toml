@@ -8,4 +8,4 @@
 # guiding example (`parser::normalize_token` change impact) answerable.
 [workspace]
 resolver = "2"
-members = ["parser"]
+members = ["parser", "ext_tokenizer"]
