@@ -12,3 +12,11 @@ pub mod envelope;
 pub mod fingerprint;
 pub mod query;
 pub mod mermaid;
+
+// Re-export the schema and envelope types at the crate root: they are the
+// vocabulary every other crate speaks, so `callscope_core::Envelope` reads
+// better than `callscope_core::envelope::Envelope`.
+pub use envelope::{Envelope, Reason, StaleInfo};
+pub use schema::{
+    Characteristics, Edge, EdgeKind, Index, Manifest, Span, Symbol, SymbolId, SCHEMA_VERSION,
+};
