@@ -5,3 +5,11 @@ edition.workspace = true
 
 [dependencies]
 callscope-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# NOTE: the rustc-private crates (rustc_driver, rustc_public, rustc_middle, …)
+# are NOT listed here. They ship in the `rustc-dev` sysroot component and are
+# pulled in via `#![feature(rustc_private)]` + `extern crate` in main.rs; rustc
+# resolves them from the sysroot lib dir. That is why this crate needs the
+# pinned nightly toolchain (rust-toolchain.toml).
