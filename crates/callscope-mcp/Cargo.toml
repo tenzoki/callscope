@@ -5,5 +5,14 @@ edition.workspace = true
 
 [dependencies]
 callscope-core = { workspace = true }
-# The MCP SDK (rmcp) is wired in P7, deliberately absent here to keep the P1
-# scaffold green.
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# The MCP SDK. `server` + `macros` give the tool-router / tool-handler surface;
+# `transport-io` gives the stdio transport this server runs over. Pinned to the
+# 2.x line (2.2 is the current stable release; 3.0 is still beta).
+rmcp = { version = "2.2", features = ["server", "transport-io", "macros"] }
+
+# Async runtime for the stdio serve loop. `macros` for #[tokio::main];
+# `rt-multi-thread` for the runtime.
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
