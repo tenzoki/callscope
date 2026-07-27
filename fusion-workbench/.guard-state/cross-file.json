@@ -1,0 +1,416 @@
+{
+  "files": {
+    "fusion-workbench/shared/history/260726-1742-orchestrator-session.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T15:42:30.919Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/_a_circle.md": {
+      "pingBackCount": 1,
+      "totalEdits": 5,
+      "lastEditTimestamp": "2026-07-26T16:30:54.842Z"
+    },
+    "fusion-workbench/shared/history/260726-1815-shaper-callscope-rust-change-impact-plugin.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T16:16:43.032Z"
+    },
+    "fusion-workbench/portfolio.md": {
+      "pingBackCount": 1,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T21:22:58.141Z"
+    },
+    "fusion-workbench/shared/history/260726-1830-playmaker-direct-dispatch.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T16:31:15.325Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-1834-orchestrator-session.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T16:34:27.789Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/decisions/260726-1838_o_analysis-technique-and-toolchain.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T16:39:17.180Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/planning/260726-1838_o_callscope-implementation.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T16:41:40.225Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-1838-planner-callscope-plan.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T16:41:59.225Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/reviews/260726-1844-conceptrev-callscope-implementation.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T16:45:18.301Z"
+    },
+    "fusion-workbench/tasklist.md": {
+      "pingBackCount": 11,
+      "totalEdits": 12,
+      "lastEditTimestamp": "2026-07-26T21:06:58.599Z"
+    },
+    "Cargo.toml": {
+      "pingBackCount": 1,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T17:04:04.858Z"
+    },
+    "rust-toolchain.toml": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T16:56:12.046Z"
+    },
+    ".gitignore": {
+      "pingBackCount": 3,
+      "totalEdits": 4,
+      "lastEditTimestamp": "2026-07-27T14:50:15.875Z"
+    },
+    "crates/callscope-core/Cargo.toml": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T16:56:17.021Z"
+    },
+    "crates/callscope-core/src/lib.rs": {
+      "pingBackCount": 1,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T17:04:02.404Z"
+    },
+    "crates/callscope-core/src/schema.rs": {
+      "pingBackCount": 1,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T17:03:26.673Z"
+    },
+    "crates/callscope-core/src/envelope.rs": {
+      "pingBackCount": 1,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T17:03:56.491Z"
+    },
+    "crates/callscope-core/src/fingerprint.rs": {
+      "pingBackCount": 1,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T17:13:58.043Z"
+    },
+    "crates/callscope-core/src/query.rs": {
+      "pingBackCount": 3,
+      "totalEdits": 7,
+      "lastEditTimestamp": "2026-07-26T18:55:55.827Z"
+    },
+    "crates/callscope-core/src/mermaid.rs": {
+      "pingBackCount": 1,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T17:24:04.483Z"
+    },
+    "crates/callscope-index/Cargo.toml": {
+      "pingBackCount": 1,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T18:56:45.380Z"
+    },
+    "crates/callscope-index/src/main.rs": {
+      "pingBackCount": 10,
+      "totalEdits": 22,
+      "lastEditTimestamp": "2026-07-26T20:52:28.720Z"
+    },
+    "crates/callscope-mcp/Cargo.toml": {
+      "pingBackCount": 1,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T18:59:26.206Z"
+    },
+    "crates/callscope-mcp/src/main.rs": {
+      "pingBackCount": 1,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T19:02:15.631Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/planning/260726-1838_p_callscope-implementation.md": {
+      "pingBackCount": 11,
+      "totalEdits": 13,
+      "lastEditTimestamp": "2026-07-26T21:17:00.100Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-1857-coder-p1-workspace-scaffold.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T16:57:46.607Z"
+    },
+    "fixtures/workspace/Cargo.toml": {
+      "pingBackCount": 1,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T20:39:04.086Z"
+    },
+    "fixtures/workspace/parser/Cargo.toml": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T17:03:20.549Z"
+    },
+    "fixtures/workspace/parser/src/lib.rs": {
+      "pingBackCount": 1,
+      "totalEdits": 4,
+      "lastEditTimestamp": "2026-07-26T20:38:42.947Z"
+    },
+    "fixtures/workspace/parser/tests/integration.rs": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T17:03:56.302Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-1904-p2-schema-and-envelope.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T17:04:38.980Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-1904-coder-p10-fixture-workspace.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T17:05:14.197Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/decisions/260726-1914_a_staleness-hash-all-vs-mtime-first.md": {
+      "pingBackCount": 1,
+      "totalEdits": 3,
+      "lastEditTimestamp": "2026-07-26T21:17:40.240Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/issues/260726-1914_o_fnv1a-duplicated-between-schema-and-fingerprint.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T17:14:50.040Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-1914-p3-fingerprint-staleness.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T17:15:10.748Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-1916-p5-graph-query-engine.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T17:16:48.550Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-1920-p6-mermaid-neighborhood-renderer.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T17:24:59.228Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/issues/260726-1930_o_call-paths-false-positive-truncated.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T17:31:09.735Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/issues/260726-1930_o_call-paths-can-drop-over-approx-flag-when-truncated.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T17:31:17.622Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/issues/260726-1930_o_symbolid-collision-has-no-detection-silent-merge.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T17:31:32.803Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/issues/260726-1930_o_mermaid-label-escaping-unverified-against-v11-grammar.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T17:31:44.872Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/reviews/260726-1930-coderev-turn1-stable-core-and-fixture.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T17:32:30.576Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-2056-fix-call-paths-truncation-and-flag-drop.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T18:56:59.582Z"
+    },
+    "crates/callscope-mcp/src/state.rs": {
+      "pingBackCount": 2,
+      "totalEdits": 4,
+      "lastEditTimestamp": "2026-07-26T19:05:32.711Z"
+    },
+    "crates/callscope-mcp/src/tools.rs": {
+      "pingBackCount": 2,
+      "totalEdits": 7,
+      "lastEditTimestamp": "2026-07-26T19:07:38.908Z"
+    },
+    "crates/callscope-mcp/tests/handlers.rs": {
+      "pingBackCount": 1,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T19:05:53.662Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/decisions/260726-2108_a_on-disk-index-serialization-format.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T19:08:30.061Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-2108-p7-callscope-mcp-server.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T19:09:15.128Z"
+    },
+    "crates/callscope-index/src/graph_build.rs": {
+      "pingBackCount": 6,
+      "totalEdits": 44,
+      "lastEditTimestamp": "2026-07-26T20:48:09.897Z"
+    },
+    "crates/callscope-index/src/driver.rs": {
+      "pingBackCount": 1,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T19:19:25.638Z"
+    },
+    "crates/callscope-index/build.rs": {
+      "pingBackCount": 1,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T19:19:57.394Z"
+    },
+    "skills/callscope/SKILL.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T19:33:33.151Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-2130-p8-workflow-skill.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T19:34:15.988Z"
+    },
+    ".mcp.json": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T19:37:53.520Z"
+    },
+    "README.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T19:38:29.108Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-2138-p9-plugin-packaging.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T19:39:15.354Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-2145-coder-p4-callscope-index-engine.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T19:54:49.274Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/issues/260726-2210_o_emit-virtual-empty-genericargs-drops-generic-implementors.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T20:11:14.354Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/issues/260726-2210_o_emit-virtual-only-enumerates-local-crate-impls.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T20:11:25.077Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/issues/260726-2210_o_mcp-mirror-structs-duplicate-core-query-payloads.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T20:11:38.180Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/issues/260726-2210_o_staleness-rehashes-whole-workspace-every-request.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T20:11:47.738Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/decisions/260726-2210_o_boundary-applies-triggered-by-std-calls-on-forward-walks.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T20:12:12.929Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/decisions/260726-2210_o_mcp-server-behavior-when-no-index-present.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T20:12:28.592Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/reviews/260726-2210-coderev-turn2-index-and-mcp.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T20:13:30.404Z"
+    },
+    "/private/tmp/claude-501/-Users-kai-Dropbox-qboot-projects-4fun-260726-rust-callscope/3da3e90f-9c00-4a8e-9e48-dce5e7680689/scratchpad/harness/Cargo.toml": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T20:34:25.824Z"
+    },
+    "/private/tmp/claude-501/-Users-kai-Dropbox-qboot-projects-4fun-260726-rust-callscope/3da3e90f-9c00-4a8e-9e48-dce5e7680689/scratchpad/harness/src/main.rs": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T20:34:35.809Z"
+    },
+    "fixtures/workspace/ext_tokenizer/Cargo.toml": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T20:38:48.362Z"
+    },
+    "fixtures/workspace/ext_tokenizer/src/lib.rs": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T20:38:59.910Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/decisions/260726-2253_a_generic-implementor-over-approximation-representation.md": {
+      "pingBackCount": 1,
+      "totalEdits": 3,
+      "lastEditTimestamp": "2026-07-26T21:18:00.407Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-2253-fix-dyn-over-approximation-gaps.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T20:54:46.109Z"
+    },
+    "/tmp/callscope-fixdyn-msg.txt": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T20:57:06.386Z"
+    },
+    "crates/callscope-mcp/tests/acceptance.rs": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T21:06:02.385Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-2306-coder-p11-acceptance-harness.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T21:07:51.311Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/decisions/260726-1838_a_analysis-technique-and-toolchain.md": {
+      "pingBackCount": 0,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T21:17:25.078Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/_t_circle.md": {
+      "pingBackCount": 0,
+      "totalEdits": 2,
+      "lastEditTimestamp": "2026-07-26T21:18:36.890Z"
+    },
+    "fusion-workbench/circles/260726-1815-callscope-rust-change-impact-plugin/history/260726-2316-reconciliation.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T21:19:22.051Z"
+    },
+    "fusion-workbench/shared/history/260726-2322-playmaker-orchestrator-phase4.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T21:23:13.173Z"
+    },
+    "fusion-workbench/shared/analyses/260726-2339-callscope-vs-rust-query-vergleich.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T21:51:51.313Z"
+    },
+    "fusion-workbench/shared/history/260726-2339-analyst-session.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-26T21:52:14.656Z"
+    },
+    "fusion-workbench/shared/history/260727-1620-orchestrator-session.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-27T14:21:01.072Z"
+    },
+    "fusion-workbench/shared/history/260727-1638-orchestrator-session.md": {
+      "pingBackCount": 0,
+      "totalEdits": 1,
+      "lastEditTimestamp": "2026-07-27T14:38:38.100Z"
+    }
+  },
+  "lastEditFile": ".gitignore",
+  "lastEditTimestamp": "2026-07-27T14:50:15.875Z"
+}

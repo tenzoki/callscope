@@ -1,0 +1,101 @@
+# plane.config.yaml — fusion ↔ Plane bridge configuration (TEMPLATE)
+#
+# Copy target: fusion-workbench/plane.config.yaml
+#   /fusion:setup copies this template into the workbench once, and never
+#   overwrites a filled-in copy. Fill in the placeholders below for YOUR Plane
+#   instance. Every value here is your project's; the *shape* is fusion's.
+#
+# What reads this file: bin/fusion-plane (push | seed | states | doctor | plan).
+#   The helper reads IDs from this file and the API key from the environment.
+#
+# ── SECURITY: the API key is NEVER stored here ──────────────────────────────
+#   The key lives ONLY in your shell profile as an environment variable:
+#       export PLANE_API_KEY="plane_api_..."     # in ~/.zshrc
+#   fusion-plane runs every Plane call through `zsh -ic "curl ... \$PLANE_API_KEY ..."`
+#   because the non-interactive Bash-tool shell does not inherit the key.
+#   Do NOT add an api_key / token / secret field to this file. There is none by
+#   design (a lint test fails the build if one appears here).
+#   If the key is ever absent, fusion-plane prints the exact transition and asks
+#   you to make it in the Plane UI — it never blocks and never fails silently.
+# ────────────────────────────────────────────────────────────────────────────
+
+# Plane instance root — scheme + host ONLY, no /api path, no trailing slash.
+#   fusion-plane builds every endpoint as:
+#       <base_url>/api/v1/workspaces/<workspace_slug>/projects/<project_id>/...
+#   Self-hosted example: https://plane.digitalleadership.com
+#   Plane Cloud:         https://api.plane.so   (cloud only — see note below)
+#
+#   Self-hosted note: on a self-hosted instance the Pages API is unreachable,
+#   so ONLY the work queue mirrors (Circles, fusion issues, decisions). Prose
+#   (history, reviews, analyses) stays in files and is never pushed. This is a
+#   scoped, deliberate limitation, not a bug.
+base_url: "https://plane.example.com"          # ← REPLACE
+
+# Workspace slug — the human-readable identifier that appears in Plane URLs
+#   (e.g. the "unite-the-results-engine" in .../workspaces/unite-the-results-engine/...).
+#   This is the slug used in the REST path, NOT the workspace UUID.
+workspace_slug: "your-workspace-slug"          # ← REPLACE
+
+# Project UUID — the target Plane project that mirrors this fusion workbench.
+#   This is a UUID (e.g. a935e1f0-fc7c-4392-8b93-2f4551e0254f), not the project
+#   name or identifier prefix. Find it in the project settings or via the API.
+project_id: "00000000-0000-0000-0000-000000000000"   # ← REPLACE
+
+# ── State name mapping ──────────────────────────────────────────────────────
+#   fusion derives a canonical Plane state from each artifact's marker
+#   (e.g. an active Circle → "In Progress", a closed issue → "Done"). The
+#   canonical names fusion uses are the five keys below. Each value is the
+#   state name AS IT EXISTS ON YOUR Plane instance.
+#
+#   fusion NEVER hardcodes state UUIDs. At runtime fusion-plane fetches the
+#   project's states/ endpoint and resolves each name below to its UUID. If
+#   your instance renames a state (e.g. a German board using "In Bearbeitung"),
+#   change only the value — the canonical key on the left stays fixed.
+#
+#   Default values assume the standard Plane state set. Edit values only if
+#   your instance uses different state names.
+#     Left  (key)   = fusion canonical state — do not rename
+#     Right (value) = the matching state name on your Plane board
+states:
+  "Backlog": "Backlog"           # Circle _a_ (anticipated)
+  "Todo": "Todo"                 # issue/decision _o_ (open)
+  "In Progress": "In Progress"   # Circle _t_ (active); issue _p_; decision _a_
+  "Done": "Done"                 # Circle _c_/_b_; issue _c_; decision _i_
+  "Cancelled": "Cancelled"       # Circle/issue/decision _s_/_d_ (superseded/deferred/dropped)
+
+# ── Kind label mapping ──────────────────────────────────────────────────────
+#   Every artifact fusion creates in Plane carries ONE label naming its kind, so
+#   the board can distinguish a Circle from a fusion issue from a decision. The
+#   three canonical keys below are fixed; each value is the label name AS IT
+#   EXISTS (or should exist) ON YOUR Plane board.
+#
+#   Same doctrine as `states` above: fusion NEVER hardcodes a label UUID. At
+#   runtime fusion-plane fetches the project's labels/ endpoint and resolves each
+#   name below to its UUID, cached once per run. A renamed or localised board
+#   changes only the value on the right — the canonical key on the left stays.
+#
+#   Create-if-missing: if a configured label name does not exist on your board,
+#   fusion-plane creates it once via the labels/ endpoint and uses the returned
+#   UUID. If creating it fails, the push proceeds WITHOUT the label and says so —
+#   a label is metadata, and fusion never blocks or fails a push over one.
+#
+#   Seeded Circles are the deliberate exception: an issue that already existed in
+#   Plane (bound via `fusion-plane seed`) receives STATE writes only, never a
+#   label, so fusion never modifies a human's story beyond its state.
+#     Left  (key)   = fusion canonical kind — do not rename
+#     Right (value) = the matching label name on your Plane board
+labels:
+  "circle": "circle"                 # a Circle record (*_circle.md)
+  "fusion-issue": "fusion-issue"     # a fusion issue (issues/*.md)
+  "decision": "decision"             # a decision record (decisions/*.md)
+
+# ── State fallback order (optional) ─────────────────────────────────────────
+#   If a canonical state's name (from `states` above) does not resolve on your
+#   Plane instance, fusion-plane tries the fallbacks listed here, in order,
+#   before giving up. Entries are canonical state names (the `states` keys),
+#   so each fallback still resolves through the mapping above.
+#
+#   The common case: an instance without a "Cancelled" state falls back to
+#   "Done". Remove or extend this block to match your board.
+state_fallback:
+  "Cancelled": ["Done"]

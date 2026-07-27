@@ -1,0 +1,1044 @@
+#!/usr/bin/env bash
+# monitor.sh — HTML-based orchestrator monitor
+# Serves a live dashboard for orchestrator-live.md and agentstate.yaml
+# Usage: ./monitor <name> <port> [-d workbench_dir] [-n events] [-i interval_sec]
+
+set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+  echo "Usage: $0 <name> <port> [-d workbench_dir] [-n events] [-i interval_sec]" >&2
+  echo "" >&2
+  echo "  name   Display name shown in the browser tab (e.g. 'F03-fusion', 'unite')" >&2
+  echo "  port   HTTP port to serve on (e.g. 8088, 8089)" >&2
+  echo "" >&2
+  echo "  -d     Path to fusion-workbench/ directory (default: ./fusion-workbench)" >&2
+  echo "  -n     Max event lines to show (default: 100)" >&2
+  echo "  -i     Refresh interval in seconds (default: 2)" >&2
+  echo "" >&2
+  echo "  Both name and port are required so multiple monitors can run in parallel." >&2
+  echo "" >&2
+  echo "  Note: if another process is listening on <port> when monitor starts, monitor" >&2
+  echo "  will SIGTERM it before binding (intentional — clears stale prior monitors)." >&2
+  echo "  Pass an unused port if you don't want this behavior." >&2
+  exit 1
+fi
+
+MONITOR_NAME="$1"
+PORT="$2"
+shift 2
+
+MAX_EVENTS=100
+INTERVAL=2
+WORKBENCH_DIR=""
+
+while getopts "d:n:i:" opt; do
+  case $opt in
+    d) WORKBENCH_DIR=$OPTARG ;;
+    n) MAX_EVENTS=$OPTARG ;;
+    i) INTERVAL=$OPTARG ;;
+    *) echo "Usage: $0 <name> <port> [-d workbench_dir] [-n events] [-i interval_sec]" >&2; exit 1 ;;
+  esac
+done
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Default workbench directory: look for fusion-workbench/ in current directory
+if [[ -z "$WORKBENCH_DIR" ]]; then
+  if [[ -d "./fusion-workbench" ]]; then
+    WORKBENCH_DIR="./fusion-workbench"
+  else
+    WORKBENCH_DIR="$SCRIPT_DIR"
+  fi
+fi
+WORKBENCH_DIR="$(cd "$WORKBENCH_DIR" 2>/dev/null && pwd || echo "$WORKBENCH_DIR")"
+TMPDIR_PATH="$(mktemp -d)"
+TMPFILE="$TMPDIR_PATH/monitor-server.py"
+
+cleanup() { rm -rf "$TMPDIR_PATH"; }
+trap cleanup EXIT INT TERM
+
+cat > "$TMPFILE" << 'PYTHON_SCRIPT'
+import http.server
+import json
+import os
+import sys
+
+MONITOR_NAME = sys.argv[1]
+PORT = int(sys.argv[2])
+MAX_EVENTS = int(sys.argv[3])
+INTERVAL = int(sys.argv[4])
+BASE_DIR = sys.argv[5]
+
+LIVE_MD = os.path.join(BASE_DIR, "orchestrator-live.md")
+EVENTS_JSONL = os.path.join(BASE_DIR, "orchestrator-events.jsonl")
+STATE_YAML = os.path.join(BASE_DIR, "agentstate.yaml")
+GUARD_EVENTS_JSONL = os.path.join(BASE_DIR, ".guard-state", "events.jsonl")
+
+# Guard events surfaced as sticky warnings on the dashboard. Other guard
+# events (guard_allow, tracker_record, clears) are bookkeeping and are
+# excluded from the warnings panel.
+WARNING_EVENT_TYPES = {
+    "churn_warning", "churn_critical",
+    "cross_file_warning", "cross_file_critical",
+    "guard_block", "guard_halt",
+}
+MAX_WARNINGS_RETURNED = 30
+
+HTML_PAGE = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MONITOR_NAME_PLACEHOLDER — Monitor</title>
+<style>
+  :root {
+    --bg: #1a1b26; --bg2: #24283b; --bg3: #292e42;
+    --fg: #c0caf5; --fg2: #a9b1d6; --fg3: #565f89;
+    --accent: #7aa2f7; --green: #9ece6a; --yellow: #e0af68;
+    --red: #f7768e; --orange: #ff9e64; --cyan: #7dcfff;
+    --purple: #bb9af7; --border: #3b4261;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace;
+    background: var(--bg); color: var(--fg);
+    line-height: 1.6; font-size: 14px;
+  }
+  nav {
+    display: flex; gap: 0; background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 0 16px; position: sticky; top: 0; z-index: 10;
+  }
+  nav button {
+    background: none; border: none; color: var(--fg3);
+    font-family: inherit; font-size: 14px;
+    padding: 12px 20px; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  nav button:hover { color: var(--fg2); }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .status-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 20px; background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--fg3);
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .status-dot.live { background: var(--green); animation: pulse 2s infinite; }
+  .status-dot.stale { background: var(--yellow); }
+  .status-dot.missing { background: var(--fg3); }
+  .status-dot.gate { background: var(--orange); }
+  .status-dot.setup { background: var(--cyan); animation: pulse 2s infinite; }
+  .status-dot.done { background: var(--fg3); }
+  .status-dot.error { background: var(--red); }
+  /* Warnings panel — guard alerts shown below the orchestrator-live block */
+  .warnings-section { margin-top: 24px; }
+  .warnings-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .warnings-header h3 { color: var(--yellow); font-size: 14px; margin: 0; }
+  .warning-dismiss-all {
+    background: var(--bg3); border: 1px solid var(--border); color: var(--fg2);
+    padding: 5px 12px; border-radius: 4px; cursor: pointer;
+    font-family: inherit; font-size: 12px;
+  }
+  .warning-dismiss-all:hover { color: var(--fg); border-color: var(--fg3); }
+  .warning-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0; padding: 10px 14px; border-radius: 6px;
+    border-left: 4px solid var(--yellow); background: var(--bg2);
+    font-size: 13px;
+  }
+  .warning-row.critical { border-left-color: var(--red); }
+  .warning-row.block    { border-left-color: var(--orange); }
+  .warning-row.halt     { border-left-color: var(--red); background: rgba(239,68,68,0.08); }
+  .warning-level {
+    font-weight: 600; text-transform: uppercase; font-size: 11px;
+    padding: 2px 8px; border-radius: 3px; background: var(--bg3); color: var(--yellow);
+    min-width: 70px; text-align: center;
+  }
+  .warning-row.critical .warning-level, .warning-row.halt .warning-level { color: var(--red); }
+  .warning-row.block    .warning-level { color: var(--orange); }
+  .warning-detail { flex: 1; color: var(--fg2); word-break: break-word; }
+  .warning-ts { color: var(--fg3); font-size: 11px; white-space: nowrap; }
+  .warning-dismiss {
+    background: none; border: 1px solid var(--border); color: var(--fg3);
+    padding: 4px 10px; border-radius: 4px; cursor: pointer;
+    font-family: inherit; font-size: 11px;
+  }
+  .warning-dismiss:hover { color: var(--fg); border-color: var(--fg3); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .page { display: none; padding: 20px; max-width: 1200px; margin: 0 auto; }
+  .page.active { display: block; }
+  /* Markdown rendered content */
+  .md-content h1 { font-size: 20px; color: var(--accent); margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  .md-content h2 { font-size: 16px; color: var(--cyan); margin: 20px 0 8px; }
+  .md-content h3 { font-size: 14px; color: var(--purple); margin: 16px 0 6px; }
+  .md-content p { margin: 6px 0; }
+  .md-content strong { color: var(--fg); }
+  .md-content code { background: var(--bg3); padding: 2px 6px; border-radius: 3px; font-size: 13px; }
+  .md-content pre { background: var(--bg3); padding: 12px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+  .md-content pre code { background: none; padding: 0; }
+  .md-content hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+  .md-content ul, .md-content ol { padding-left: 24px; margin: 6px 0; }
+  .md-content li { margin: 2px 0; }
+  .md-content table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  .md-content th, .md-content td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+  .md-content th { background: var(--bg3); color: var(--accent); font-weight: 600; }
+  /* Status badges in rendered markdown */
+  .md-content { word-wrap: break-word; }
+  /* Long unbroken tokens (active-Circle paths, commit hashes) can overflow
+     narrow viewports because `word-wrap: break-word` only breaks on word
+     boundaries — hyphenated ids
+     are treated as a single long word. break-all permits a hard break anywhere
+     inside `code` / `pre` so the id stays visible regardless of viewport width. */
+  .md-content code, .md-content pre { word-break: break-all; }
+  /* Event log */
+  .events-section { margin-top: 24px; }
+  .events-section h3 { color: var(--cyan); font-size: 14px; margin-bottom: 10px; }
+  .event-list { display: flex; flex-direction: column; gap: 2px; }
+  .event-row {
+    display: grid; grid-template-columns: 80px 140px 1fr;
+    gap: 12px; padding: 6px 10px; border-radius: 4px;
+    font-size: 13px; background: var(--bg2);
+  }
+  .event-row:nth-child(odd) { background: var(--bg3); }
+  .event-ts { color: var(--fg3); }
+  .event-type { font-weight: 600; }
+  .event-type.session_start, .event-type.session_end { color: var(--accent); }
+  .event-type.task_start { color: var(--yellow); }
+  .event-type.task_done { color: var(--green); }
+  .event-type.task_error, .event-type.bugfix_failure { color: var(--red); }
+  .event-type.commit { color: var(--green); }
+  .event-type.gate_hit { color: var(--orange); }
+  .event-type.turn_start, .event-type.turn_end { color: var(--purple); }
+  .event-type.scope_resolved, .event-type.queue_built { color: var(--cyan); }
+  .event-type.review_start, .event-type.review_done { color: var(--purple); }
+  .event-type.revert { color: var(--red); }
+  /* v2.9.0 Coherence and Rebalance events */
+  .event-type.coherence_review { color: var(--cyan); }
+  .event-type.rebalance_artifact, .event-type.rebalance_grounding, .event-type.rebalance_directive { color: var(--purple); }
+  .event-type.bounded_closure_proposed { color: var(--orange); }
+  .event-detail { color: var(--fg2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* YAML state view */
+  .yaml-content {
+    background: var(--bg2); padding: 16px; border-radius: 6px;
+    font-size: 13px; line-height: 1.7; overflow-x: auto;
+    white-space: pre-wrap; word-wrap: break-word;
+  }
+  .yaml-key { color: var(--cyan); }
+  .yaml-string { color: var(--green); }
+  .yaml-number { color: var(--orange); }
+  .yaml-comment { color: var(--fg3); font-style: italic; }
+  .yaml-bool { color: var(--purple); }
+  .yaml-null { color: var(--fg3); }
+  .yaml-list-marker { color: var(--yellow); }
+  .no-file {
+    color: var(--fg3); text-align: center; padding: 60px 20px;
+    font-size: 16px;
+  }
+  .no-file span { display: block; margin-top: 8px; font-size: 13px; }
+</style>
+</head>
+<body>
+<nav>
+  <span style="color: var(--accent); font-weight: 700; padding: 12px 16px; font-size: 14px; white-space: nowrap;">MONITOR_NAME_PLACEHOLDER</span>
+  <button data-page="dashboard" class="active">Dashboard</button>
+  <button data-page="events">Event Log</button>
+  <button data-page="state">Agent State</button>
+  <span id="eta-estimate" style="margin-left: auto; padding: 12px 20px; font-size: 14px; color: var(--fg2); white-space: nowrap;"></span>
+</nav>
+<div class="status-bar">
+  <span><span class="status-dot missing" id="status-dot"></span><span id="status-text">Connecting...</span></span>
+  <span id="last-update"></span>
+</div>
+
+<div id="dashboard" class="page active">
+  <div id="dashboard-content" class="md-content">
+    <div class="no-file">Waiting for data...<span>Polling every INTERVAL_PLACEHOLDER seconds</span></div>
+  </div>
+  <div id="warnings-section" class="warnings-section" style="display:none">
+    <hr>
+    <div class="warnings-header">
+      <h3>Guard Warnings</h3>
+      <button id="dismiss-all-btn" class="warning-dismiss-all">Dismiss All</button>
+    </div>
+    <div id="warnings-panel"></div>
+  </div>
+</div>
+
+<div id="events" class="page">
+  <div class="events-section">
+    <h3>Event Log (last <span id="max-events-label">MAX_EVENTS_PLACEHOLDER</span> events)</h3>
+    <div id="events-content" class="event-list">
+      <div class="no-file">Waiting for events...<span>Polling every INTERVAL_PLACEHOLDER seconds</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="state" class="page">
+  <div id="state-content">
+    <div class="no-file">Waiting for data...<span>Polling every INTERVAL_PLACEHOLDER seconds</span></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var POLL_INTERVAL = INTERVAL_PLACEHOLDER * 1000;
+  var MAX_EV = MAX_EVENTS_PLACEHOLDER;
+  var currentPage = 'dashboard';
+  var markedLoaded = false;
+  var markedReady = false;
+
+  // Load marked.js from CDN
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/marked@14/marked.min.js';
+  s.onload = function() { markedLoaded = true; markedReady = true; rerender(); };
+  s.onerror = function() { markedLoaded = true; markedReady = false; };
+  document.head.appendChild(s);
+
+  var lastDashboardMd = '';
+  var lastEvents = '';
+  var lastState = '';
+
+  function showPage(name) {
+    currentPage = name;
+    document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+    var target = document.getElementById(name);
+    if (target) target.classList.add('active');
+    document.querySelectorAll('nav button').forEach(function(b) {
+      b.classList.toggle('active', b.getAttribute('data-page') === name);
+    });
+  }
+  window.showPage = showPage;
+  // Wire up nav buttons declaratively from data-page attributes
+  document.querySelectorAll('nav button[data-page]').forEach(function(b) {
+    b.addEventListener('click', function() { showPage(b.getAttribute('data-page')); });
+  });
+
+  // When the dashboard's first counter line still has uninitialised Turn /
+  // Task slots (`--/5 | Tasks: --/--`) the visual reads as "nothing
+  // happening" even though the Session line shows real activity (Phase 0 /
+  // Phase 1 / Setup gate). Until Turn 1 begins, surface the parsed Phase
+  // from the `Session:` line so the user sees what stage the orchestrator
+  // is in rather than a row of dashes. Pure client-side overlay — the file
+  // format the orchestrator writes is untouched.
+  function decorateDashboardMd(md) {
+    if (!md || md.indexOf('--/--') === -1) return md;
+    // Pull Phase from the Session line if present, e.g.
+    //   "Session: Phase 0 form-decision gate" → "Phase 0"
+    //   "Session: Setup"                       → "Setup"
+    var phase = '';
+    var sessMatch = md.match(/^Session:\s*(.+)$/m);
+    if (sessMatch) {
+      var sess = sessMatch[1].trim();
+      var phaseMatch = sess.match(/^(Phase\s+\d+|Setup|Pre-Turn)/i);
+      phase = phaseMatch ? phaseMatch[1] : sess.split(/\s+/).slice(0, 2).join(' ');
+    }
+    if (!phase) phase = 'Setup / Pre-Turn';
+    // Replace the first `Turn: --/N` (or `--/--`) line with a Phase prefix.
+    // Match conservatively so we only touch counter lines, not random text.
+    return md.replace(/^(Turn:\s*[^|\n]*--\/[^|\n]*\|[^\n]*)$/m,
+      'Phase: ' + phase + ' · $1');
+  }
+
+  function renderMarkdown(md) {
+    var prepared = decorateDashboardMd(md);
+    if (markedReady && typeof marked !== 'undefined') {
+      return marked.parse(prepared);
+    }
+    // Fallback: wrap in pre
+    return '<pre>' + escapeHtml(prepared) + '</pre>';
+  }
+
+  function escapeHtml(t) {
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(t));
+    return d.innerHTML;
+  }
+
+  // Render a UTC ISO timestamp in the browser's local timezone. Events are
+  // persisted in UTC (canonical) but displayed local so they line up with
+  // the header "Updated" clock the user sees. orchestrator-events.jsonl
+  // timestamps lack a 'Z' designator (written by `date -u +…`); route them
+  // through parseUTCTs so naked timestamps are interpreted as UTC instead of
+  // local — otherwise getHours()/getMinutes() would be wrong by the user's
+  // TZ offset. parseUTCTs is function-declaration-hoisted from below.
+  function formatLocalTime(iso, mode) {
+    if (!iso) return '';
+    var d = new Date(parseUTCTs(iso));
+    if (isNaN(d.getTime())) return iso;
+    var hh = String(d.getHours()).padStart(2, '0');
+    var mm = String(d.getMinutes()).padStart(2, '0');
+    var ss = String(d.getSeconds()).padStart(2, '0');
+    if (mode === 'date') {
+      var yyyy = d.getFullYear();
+      var mo = String(d.getMonth() + 1).padStart(2, '0');
+      var dd = String(d.getDate()).padStart(2, '0');
+      return yyyy + '-' + mo + '-' + dd + ' ' + hh + ':' + mm;
+    }
+    return hh + ':' + mm + ':' + ss;
+  }
+
+  // Compute a stable dismissal key for a warning. Same (event,file,detail)
+  // means "the same warning" — dismissing once suppresses recurrence even
+  // if the warning re-emits during the session.
+  function warningKey(w) {
+    return 'fusion-mon-dismissed:' + (w.event || '') + ':' +
+           (w.file || '') + ':' + (w.detail || '');
+  }
+
+  function renderWarnings(warnings) {
+    var section = document.getElementById('warnings-section');
+    var panel = document.getElementById('warnings-panel');
+    if (!warnings || warnings.length === 0) {
+      section.style.display = 'none';
+      panel.innerHTML = '';
+      return;
+    }
+    // Latest-first; collapse duplicate keys keeping the most recent.
+    var seen = {};
+    var visible = [];
+    for (var i = warnings.length - 1; i >= 0; i--) {
+      var w = warnings[i];
+      var key = warningKey(w);
+      if (seen[key]) continue;
+      seen[key] = true;
+      if (localStorage.getItem(key)) continue;
+      visible.push(w);
+    }
+    if (visible.length === 0) {
+      section.style.display = 'none';
+      panel.innerHTML = '';
+      return;
+    }
+    var html = '';
+    for (var j = 0; j < visible.length; j++) {
+      var w = visible[j];
+      var levelClass = 'warning';
+      var levelLabel = 'Warning';
+      if (w.event === 'churn_critical' || w.event === 'cross_file_critical') {
+        levelClass = 'critical'; levelLabel = 'Critical';
+      } else if (w.event === 'cross_file_warning') {
+        levelClass = 'warning'; levelLabel = 'Cross-file';
+      } else if (w.event === 'guard_block') { levelClass = 'block'; levelLabel = 'Blocked'; }
+      else if (w.event === 'guard_halt')  { levelClass = 'halt'; levelLabel = 'Halt'; }
+      var ts = formatLocalTime(w.ts || '', 'date');
+      var key = warningKey(w);
+      html += '<div class="warning-row ' + levelClass + '">' +
+        '<span class="warning-level">' + escapeHtml(levelLabel) + '</span>' +
+        '<span class="warning-detail">' + escapeHtml(w.detail || w.event) + '</span>' +
+        '<span class="warning-ts">' + escapeHtml(ts) + '</span>' +
+        '<button class="warning-dismiss" data-key="' + escapeHtml(key) + '">dismiss</button>' +
+        '</div>';
+    }
+    panel.innerHTML = html;
+    section.style.display = 'block';
+    var btns = panel.querySelectorAll('.warning-dismiss');
+    for (var k = 0; k < btns.length; k++) {
+      btns[k].addEventListener('click', function(ev) {
+        var btn = ev.currentTarget;
+        try { localStorage.setItem(btn.getAttribute('data-key'), '1'); } catch (e) {}
+        btn.parentElement.parentNode.removeChild(btn.parentElement);
+        if (panel.children.length === 0) section.style.display = 'none';
+      });
+    }
+  }
+
+  // Dismiss All — wired once on load; sets dismissal keys for every visible
+  // warning currently in the panel and clears the section.
+  document.getElementById('dismiss-all-btn').addEventListener('click', function() {
+    var section = document.getElementById('warnings-section');
+    var panel = document.getElementById('warnings-panel');
+    var btns = panel.querySelectorAll('.warning-dismiss');
+    for (var k = 0; k < btns.length; k++) {
+      try { localStorage.setItem(btns[k].getAttribute('data-key'), '1'); } catch (e) {}
+    }
+    panel.innerHTML = '';
+    section.style.display = 'none';
+  });
+
+  function highlightYaml(text) {
+    var lines = text.split('\n');
+    var result = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var escaped = escapeHtml(line);
+      // Comments
+      if (/^\s*#/.test(line)) {
+        result.push('<span class="yaml-comment">' + escaped + '</span>');
+        continue;
+      }
+      // Key-value lines
+      escaped = escaped.replace(/^(\s*)(- )/, '$1<span class="yaml-list-marker">- </span>');
+      escaped = escaped.replace(/^(\s*(?:<span[^>]*>- <\/span>)?)([A-Za-z_][A-Za-z0-9_.-]*)(:\s*)/, function(m, pre, key, sep) {
+        return pre + '<span class="yaml-key">' + key + '</span>' + sep;
+      });
+      // Inline comment at end
+      escaped = escaped.replace(/(#.*)$/, '<span class="yaml-comment">$1</span>');
+      // Strings in quotes
+      escaped = escaped.replace(/"([^"]*)"/, '"<span class="yaml-string">$1</span>"');
+      escaped = escaped.replace(/'([^']*)'/, '\'<span class="yaml-string">$1</span>\'');
+      // Booleans and null
+      escaped = escaped.replace(/:\s+(true|false)(\s|$)/, function(m, val, after) {
+        return ': <span class="yaml-bool">' + val + '</span>' + after;
+      });
+      escaped = escaped.replace(/:\s+(null|~)(\s|$)/, function(m, val, after) {
+        return ': <span class="yaml-null">' + val + '</span>' + after;
+      });
+      // Numbers
+      escaped = escaped.replace(/:\s+(\d+\.?\d*)(\s|$)/, function(m, val, after) {
+        return ': <span class="yaml-number">' + val + '</span>' + after;
+      });
+      result.push(escaped);
+    }
+    return result.join('\n');
+  }
+
+  // Render an event's `detail` field as a human-readable string. Events emit
+  // `detail` as either a string (the common case) or an object (richer events
+  // like coherence_review carry structured detail). Without this helper an
+  // object detail renders as the literal "[object Object]" via implicit
+  // toString. Object values are joined as `key=value` pairs with a thin
+  // separator; nested objects/arrays fall back to JSON.stringify so the row
+  // remains readable even for non-flat payloads.
+  function formatDetail(d) {
+    if (d === null || d === undefined) return '';
+    if (typeof d === 'string') return d;
+    if (typeof d === 'object') {
+      var parts = [];
+      for (var k in d) {
+        if (!Object.prototype.hasOwnProperty.call(d, k)) continue;
+        var v = d[k];
+        if (v !== null && typeof v === 'object') v = JSON.stringify(v);
+        parts.push(k + '=' + v);
+      }
+      return parts.join(' · ');
+    }
+    return String(d);
+  }
+
+  function formatEvent(ev) {
+    var timePart = formatLocalTime(ev.ts || '');
+    var evType = ev.event || 'unknown';
+    var detail = formatDetail(ev.detail);
+    if (ev.task) detail = '[' + ev.task + '] ' + detail;
+    // Events without an explicit agent field are by definition orchestrator-
+    // emitted (session_start, gate_hit, commit, turn_*, reconciliation, …).
+    // Default rather than render an unlabeled row, so every event displays
+    // <agent>: <detail> uniformly.
+    detail = (ev.agent || 'orchestrator') + ': ' + detail;
+
+    return '<div class="event-row">' +
+      '<span class="event-ts">' + escapeHtml(timePart) + '</span>' +
+      '<span class="event-type ' + escapeHtml(evType) + '">' + escapeHtml(evType) + '</span>' +
+      '<span class="event-detail" title="' + escapeHtml(detail) + '">' + escapeHtml(detail) + '</span>' +
+      '</div>';
+  }
+
+  // Parse an event timestamp as UTC, returning Unix epoch ms (NaN on failure).
+  // orchestrator-events.jsonl timestamps are written by `date -u
+  // +%Y-%m-%dT%H:%M:%S` — UTC but without a 'Z' suffix. Per ECMA-262, an
+  // ISO-8601 string with no timezone designator is interpreted as local time,
+  // which would offset every parsed instant by the user's TZ. The fix:
+  // append 'Z' unless the string already carries a timezone designator
+  // (trailing 'Z' or a ±HH:MM / ±HHMM offset), then parse.
+  function parseUTCTs(ts) {
+    if (!ts) return NaN;
+    if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(ts)) {
+      return new Date(ts).getTime();
+    }
+    return new Date(ts + 'Z').getTime();
+  }
+
+  // Compute an ETA string for the currently running task by pairing past
+  // (task_start, task_done) events per agent and averaging the last 10
+  // durations. Returns '' when there's no running task; a labelled '—' when
+  // history is too thin to estimate; the formatted ETA otherwise.
+  //
+  // Algorithm:
+  //   1. Walk events oldest→newest; for each task_done, pop the most-recent
+  //      earlier task_start with the same task id off a per-id stack. The
+  //      pair's duration is grouped by the start.agent ('orchestrator' default).
+  //      Track the timestamp of the most recent session_start seen so the
+  //      candidate-selection step can reject orphan task_starts from prior
+  //      sessions (see step 2).
+  //   2. After the walk, any task_start ids still on a stack are unmatched —
+  //      the last unmatched one (chronologically) is the currently running
+  //      task, *provided* its timestamp is at-or-after the most recent
+  //      session_start. Unmatched task_starts that predate the latest
+  //      session_start are orphans (their session ended without emitting a
+  //      matching task_done) and must not be paired as "running". If no
+  //      session_start was seen in the window we fall back to the prior
+  //      behaviour (latest unmatched across all ids).
+  //   3. Tiered estimate selection driven by the per-agent paired-duration
+  //      count `n` (window = last 10):
+  //        n ≥ 3 → per-agent mean, label "(Nm avg, agent)"
+  //        n == 2 or 1 → per-agent mean, label "(Nm avg, agent, n=K) ⚠ low data"
+  //        n == 0 and global pairs ≥ 1 → cross-agent mean of last 10 paired
+  //          durations across all agents (flattened in chronological completion
+  //          order), label "(Nm avg, all agents) ⚠ no per-agent data"
+  //        zero pairs anywhere → "ETA: — (no completed tasks yet)"
+  //   4. Landing = running.ts + avg, format "HH:MM <suffix>".
+  function computeETA(events) {
+    if (!events || events.length === 0) {
+      return 'ETA: — (no events yet)';
+    }
+    // Per-task-id stack of pending task_start events, and the per-agent
+    // duration history accumulated as we walk. historyGlobal flattens
+    // every paired duration across agents in chronological completion order
+    // so the n==0 branch can fall back to a global average.
+    var pending = {};       // task_id -> [start_event, start_event, ...]
+    var historyByAgent = {}; // agent -> [durations in chronological completion order]
+    var historyGlobal = []; // [duration, duration, ...] across all agents, completion-order
+    var latestSessionStartMs = -1;  // most recent session_start ts in window; -1 if none
+    var lastSessionEndMs = -1;      // most recent session_end ts in window; -1 if none
+    for (var i = 0; i < events.length; i++) {
+      var ev = events[i];
+      if (!ev) continue;
+      // Track session boundaries before the task-field guard — session_start
+      // has no `task` field and would otherwise be skipped.
+      if (ev.event === 'session_start') {
+        var sessMs = parseUTCTs(ev.ts);
+        if (!isNaN(sessMs) && sessMs > latestSessionStartMs) {
+          latestSessionStartMs = sessMs;
+        }
+        continue;
+      }
+      // Drain pending on session_end — anything unmatched when the session
+      // closes is an orphan from that closed session and must not be rendered
+      // as "running" (issue 260530-0106). Like session_start, this event has
+      // no `task` field, so the branch must come before the guard below.
+      // Also record the timestamp so the running-task boundary below can use
+      // it: see the boundary computation for why max(start, end) is the right
+      // anchor.
+      if (ev.event === 'session_end') {
+        var endMs = parseUTCTs(ev.ts);
+        if (!isNaN(endMs) && endMs > lastSessionEndMs) {
+          lastSessionEndMs = endMs;
+        }
+        pending = {};
+        continue;
+      }
+      if (!ev.task) continue;
+      if (ev.event === 'task_start') {
+        if (!pending[ev.task]) pending[ev.task] = [];
+        pending[ev.task].push(ev);
+      } else if (ev.event === 'task_done') {
+        var stack = pending[ev.task];
+        if (!stack || stack.length === 0) continue;
+        var startEv = stack.pop();
+        var startMs = parseUTCTs(startEv.ts);
+        var doneMs = parseUTCTs(ev.ts);
+        if (isNaN(startMs) || isNaN(doneMs)) continue;
+        if (doneMs < startMs) continue;  // clock skew / out-of-order — skip
+        var durSec = (doneMs - startMs) / 1000;
+        var ag = startEv.agent || 'orchestrator';
+        if (!historyByAgent[ag]) historyByAgent[ag] = [];
+        historyByAgent[ag].push(durSec);
+        historyGlobal.push(durSec);
+      }
+    }
+    // Find currently running task: latest unmatched task_start across all ids,
+    // rejecting any candidate that predates the current session boundary.
+    //
+    // The boundary is max(latest session_start, last session_end), NOT just the
+    // latest session_start. Keying on session_start alone broke two real cases:
+    //   1. A long session whose session_start scrolled out of the last-N-events
+    //      window — no session_start in view, so every running task_start was
+    //      either always-accepted (orphans leak) or, with a stale prior
+    //      session_start in view, wrongly rejected → ETA stuck on "—".
+    //   2. A session that never emitted session_start at all (e.g. a
+    //      manual-conductor session) — same "—" stickiness.
+    // Anchoring to the later of (start, end) handles all of them: after a clean
+    // session_end the pending map is already drained, so a fresh task_start that
+    // post-dates that end is correctly seen as running even with no session_start
+    // in the window; and an interrupted prior session's orphans (which predate
+    // the new session_start) are still rejected. If neither boundary was seen,
+    // both stay -1 and the predicate degenerates to "always accept" (pre-fix
+    // behaviour for a cold window).
+    var sessionBoundaryMs = Math.max(latestSessionStartMs, lastSessionEndMs);
+    var running = null;
+    var runningTs = -1;
+    for (var tid in pending) {
+      if (!pending.hasOwnProperty(tid)) continue;
+      var arr = pending[tid];
+      if (arr.length === 0) continue;
+      var last = arr[arr.length - 1];
+      var ts = parseUTCTs(last.ts);
+      if (isNaN(ts)) continue;
+      if (ts < sessionBoundaryMs) continue;  // orphan from a prior/ended session
+      if (ts > runningTs) {
+        runningTs = ts;
+        running = last;
+      }
+    }
+    if (!running) return '';  // no task in flight
+    var agent = running.agent || 'orchestrator';
+    var hist = historyByAgent[agent] || [];
+    // Tiered fallback: prefer per-agent; if no per-agent samples, fall back to
+    // global; if no samples anywhere, surface the cold-start message.
+    function meanOfLast(arr, k) {
+      var w = arr.slice(-k);
+      var s = 0;
+      for (var j = 0; j < w.length; j++) s += w[j];
+      return s / w.length;
+    }
+    function avgLabelOf(avgSec) {
+      return avgSec < 60 ? '<1m' : Math.round(avgSec / 60) + 'm';
+    }
+    function formatLanding(avgSec) {
+      var landingMs = runningTs + avgSec * 1000;
+      var landing = new Date(landingMs);
+      if (isNaN(landing.getTime())) return null;
+      var hh = String(landing.getHours()).padStart(2, '0');
+      var mm = String(landing.getMinutes()).padStart(2, '0');
+      return hh + ':' + mm;
+    }
+    var avgSec, hhmm, suffix;
+    if (hist.length >= 3) {
+      avgSec = meanOfLast(hist, 10);
+      hhmm = formatLanding(avgSec);
+      if (hhmm === null) return '';
+      suffix = '(' + avgLabelOf(avgSec) + ' avg, ' + agent + ')';
+      return 'ETA: ' + hhmm + ' ' + suffix;
+    }
+    if (hist.length === 2 || hist.length === 1) {
+      avgSec = meanOfLast(hist, hist.length);
+      hhmm = formatLanding(avgSec);
+      if (hhmm === null) return '';
+      suffix = '(' + avgLabelOf(avgSec) + ' avg, ' + agent + ', n=' + hist.length + ') ⚠ low data';
+      return 'ETA: ' + hhmm + ' ' + suffix;
+    }
+    // hist.length === 0: try global fallback.
+    if (historyGlobal.length >= 1) {
+      avgSec = meanOfLast(historyGlobal, 10);
+      hhmm = formatLanding(avgSec);
+      if (hhmm === null) return '';
+      suffix = '(' + avgLabelOf(avgSec) + ' avg, all agents) ⚠ no per-agent data';
+      return 'ETA: ' + hhmm + ' ' + suffix;
+    }
+    // No completed task anywhere in the window.
+    return 'ETA: — (no completed tasks yet)';
+  }
+
+  function updateStatus(hasFile, age, mode) {
+    var dot = document.getElementById('status-dot');
+    var text = document.getElementById('status-text');
+    if (!hasFile) {
+      dot.className = 'status-dot missing';
+      text.textContent = 'No dashboard file found';
+    } else if (mode === 'gate') {
+      dot.className = 'status-dot gate';
+      text.textContent = '⏸ Paused at gate — waiting on user';
+    } else if (mode === 'setup' && !(age !== undefined && age > 3600)) {
+      // "Awaiting instruction" is honest right after a session_start, but a
+      // session_start from an interrupted session (Claude killed before it
+      // wrote anything else) would otherwise stick this label forever. After
+      // an hour of silence, fall through to the age-based "stale" branch so a
+      // dead session reads as "investigate" rather than "awaiting instruction".
+      dot.className = 'status-dot setup';
+      text.textContent = '⏸ Awaiting instruction';
+    } else if (mode === 'done') {
+      dot.className = 'status-dot done';
+      text.textContent = 'Session complete';
+    } else if (mode === 'error') {
+      dot.className = 'status-dot error';
+      text.textContent = 'Error';
+    } else if (age !== undefined && age > 3600) {
+      // Past 1h: stronger language, still yellow dot. Past 1h of true silence
+      // is genuinely worth a look — but "investigate" is still softer than
+      // "agent may be stuck".
+      dot.className = 'status-dot stale';
+      text.textContent = 'no updates in ' + Math.round(age/3600) + 'h — investigate';
+    } else if (age !== undefined && age > 900) {
+      // 15min threshold (was 5min). Many legitimate tasks (coder dispatches
+      // across multiple files, reconciler passes, smoke tests) exceed 5min;
+      // the previous "agent may be stuck" copy alarmed users during normal
+      // long-running work. 15min is a more honest first-tier signal.
+      dot.className = 'status-dot stale';
+      text.textContent = 'no updates in ' + Math.round(age/60) + 'm — agent may be working a long task';
+    } else {
+      dot.className = 'status-dot live';
+      text.textContent = 'Live';
+    }
+    // Wall-clock poll time (browser-local). The file's own age relative to
+    // wall-clock is appended below so the user can distinguish "browser just
+    // refreshed" from "fusion just wrote the file".
+    var nowStr = new Date().toLocaleTimeString();
+    var ageStr = '';
+    if (age !== undefined && age > 60) {
+      if (age > 3600) ageStr = ' (' + Math.round(age / 3600) + 'h ago)';
+      else ageStr = ' (' + Math.round(age / 60) + 'm ago)';
+    }
+    document.getElementById('last-update').textContent = 'Updated: ' + nowStr + ageStr;
+  }
+
+  function rerender() {
+    if (lastDashboardMd) {
+      document.getElementById('dashboard-content').innerHTML = renderMarkdown(lastDashboardMd);
+    }
+  }
+
+  function pollDashboard() {
+    fetch('/api/dashboard')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        updateStatus(data.exists, data.age, data.mode);
+        renderWarnings(data.warnings);
+        // ETA next to the "Updated:" timestamp — recomputed every poll
+        // from data.events. Empty string when no task is currently running
+        // (so it doesn't show stale data).
+        var etaEl = document.getElementById('eta-estimate');
+        if (etaEl) {
+          var etaStr = computeETA(data.events);
+          if (etaStr) {
+            etaEl.textContent = ' · ' + etaStr;
+          } else {
+            // Keep the slot visible when no task is in flight so the user
+            // sees the layout is intact (and not broken/loading). Em-dash
+            // signals "no estimate available" without alarming.
+            etaEl.textContent = ' · ETA: —';
+          }
+        }
+        if (data.dashboard && data.dashboard !== lastDashboardMd) {
+          lastDashboardMd = data.dashboard;
+          document.getElementById('dashboard-content').innerHTML = renderMarkdown(data.dashboard);
+        }
+        if (!data.exists) {
+          document.getElementById('dashboard-content').innerHTML =
+            '<div class="no-file">Waiting for orchestrator-live.md...<span>File will appear when the orchestrator starts</span></div>';
+        }
+        var evHtml = '';
+        var evContent = document.getElementById('events-content');
+        if (data.events && data.events.length > 0) {
+          var evStr = JSON.stringify(data.events);
+          if (evStr !== lastEvents) {
+            lastEvents = evStr;
+            for (var i = data.events.length - 1; i >= 0; i--) {
+              evHtml += formatEvent(data.events[i]);
+            }
+            evContent.innerHTML = evHtml;
+          }
+        } else if (lastEvents !== '__empty__') {
+          lastEvents = '__empty__';
+          evContent.innerHTML =
+            '<div class="no-file">No events yet<span>Events appear here as the orchestrator runs</span></div>';
+        }
+      })
+      .catch(function() {});
+  }
+
+  function pollState() {
+    fetch('/api/state')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.exists) {
+          var content = data.content || '';
+          if (content !== lastState) {
+            lastState = content;
+            document.getElementById('state-content').innerHTML =
+              '<pre class="yaml-content">' + highlightYaml(content) + '</pre>';
+          }
+        } else {
+          if (lastState !== '__missing__') {
+            lastState = '__missing__';
+            document.getElementById('state-content').innerHTML =
+              '<div class="no-file">No active session<span>agentstate.yaml does not exist (created when orchestrator starts, deleted on clean exit)</span></div>';
+          }
+        }
+      })
+      .catch(function() {});
+  }
+
+  function poll() {
+    pollDashboard();
+    pollState();
+  }
+
+  poll();
+  setInterval(poll, POLL_INTERVAL);
+})();
+</script>
+</body>
+</html>""".replace('MONITOR_NAME_PLACEHOLDER', MONITOR_NAME).replace('INTERVAL_PLACEHOLDER', str(INTERVAL)).replace('MAX_EVENTS_PLACEHOLDER', str(MAX_EVENTS))
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    # Per-connection socket timeout. Without this, a client that opens a
+    # connection and then stalls mid-request (a backgrounded browser tab, a
+    # laptop sleep/wake, a localhost socket blip) would block its worker
+    # indefinitely. With ThreadingHTTPServer below, a wedged worker no longer
+    # freezes the whole server, but the timeout still reclaims the thread.
+    timeout = 15
+
+    def log_message(self, format, *args):
+        # Suppress default request logging
+        pass
+
+    def _headers(self, content_type="application/json", status=200):
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+    def _read_file(self, path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read(), True
+        except FileNotFoundError:
+            return "", False
+        except Exception as e:
+            return f"Error reading file: {e}", False
+
+    def _file_age(self, path):
+        try:
+            import time
+            return time.time() - os.path.getmtime(path)
+        except Exception:
+            return None
+
+    # Map the orchestrator's most recent event to a UI mode. Markdown markers
+    # in orchestrator-live.md are inconsistent across sessions ("## Current"
+    # vs "## Status", with-marker vs free text), but the events log is
+    # structured and append-only — the most recent event reliably tells us
+    # what the orchestrator is doing right now. Any event not in this map
+    # leaves mode unset and falls back to the age-based logic.
+    LAST_EVENT_TO_MODE = {
+        "session_start": "setup",
+        "gate_hit": "gate",
+        "session_end": "done",
+        "task_error": "error",
+        "bugfix_failure": "error",
+    }
+
+    def _parse_mode(self, events):
+        if not events:
+            return None
+        last = events[-1].get("event") if isinstance(events[-1], dict) else None
+        return self.LAST_EVENT_TO_MODE.get(last)
+
+    def _read_warnings(self):
+        """Read .guard-state/events.jsonl and return the most recent
+        warning-class events. Filters out noise (guard_allow, tracker_record).
+        Returns up to MAX_WARNINGS_RETURNED events, newest last."""
+        content, exists = self._read_file(GUARD_EVENTS_JSONL)
+        if not exists or not content.strip():
+            return []
+        warnings = []
+        for line in content.strip().split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                ev = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if ev.get("event") in WARNING_EVENT_TYPES:
+                warnings.append(ev)
+        return warnings[-MAX_WARNINGS_RETURNED:]
+
+    def do_GET(self):
+        if self.path == "/":
+            self._headers("text/html")
+            self.wfile.write(HTML_PAGE.encode("utf-8"))
+
+        elif self.path == "/api/dashboard":
+            self._headers()
+            content, exists = self._read_file(LIVE_MD)
+            age = self._file_age(LIVE_MD)
+
+            events = []
+            ev_content, ev_exists = self._read_file(EVENTS_JSONL)
+            if ev_exists and ev_content.strip():
+                lines = ev_content.strip().split("\n")
+                # Take last N events
+                for line in lines[-MAX_EVENTS:]:
+                    line = line.strip()
+                    if line:
+                        try:
+                            events.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            pass
+
+            resp = json.dumps({
+                "dashboard": content,
+                "exists": exists,
+                "age": age,
+                "mode": self._parse_mode(events),
+                "events": events,
+                "warnings": self._read_warnings(),
+            })
+            self.wfile.write(resp.encode("utf-8"))
+
+        elif self.path == "/api/state":
+            self._headers()
+            content, exists = self._read_file(STATE_YAML)
+            resp = json.dumps({
+                "content": content,
+                "exists": exists,
+            })
+            self.wfile.write(resp.encode("utf-8"))
+
+        else:
+            self._headers(status=404)
+            self.wfile.write(b'{"error": "not found"}')
+
+
+import socket, signal, subprocess
+
+# Kill any previous monitor on this port
+try:
+    out = subprocess.check_output(["lsof", "-ti", f":{PORT}"], stderr=subprocess.DEVNULL).decode().strip()
+    for pid in out.split("\n"):
+        pid = pid.strip()
+        if pid and int(pid) != os.getpid():
+            os.kill(int(pid), signal.SIGTERM)
+            import time; time.sleep(0.3)
+except (subprocess.CalledProcessError, ValueError, ProcessLookupError):
+    pass
+
+# ThreadingHTTPServer (not the single-threaded HTTPServer): the browser fires
+# two concurrent requests every poll (/api/dashboard + /api/state), and any one
+# slow or stalled connection on a single-threaded server wedges serve_forever()
+# indefinitely — the port stays bound (monitor *looks* alive) but never serves
+# fresh data again. That was the root of the "monitor shows no changes / goes
+# unstable" reports; prior fixes only touched the ETA algorithm, never the
+# server. daemon_threads=True lets the process exit cleanly without joining
+# stuck worker threads.
+class ReuseServer(http.server.ThreadingHTTPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+    def server_bind(self):
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        except (AttributeError, OSError):
+            pass
+        super().server_bind()
+
+server = ReuseServer(("127.0.0.1", PORT), Handler)
+print(f"\n  {MONITOR_NAME} — Orchestrator Monitor")
+print(f"  http://localhost:{PORT}")
+print(f"  Watching: {BASE_DIR}")
+print(f"  Polling every {INTERVAL}s | Showing last {MAX_EVENTS} events")
+print(f"  Press Ctrl+C to stop\n")
+
+try:
+    server.serve_forever()
+except KeyboardInterrupt:
+    print("\n  Stopped.")
+    server.server_close()
+PYTHON_SCRIPT
+
+python3 "$TMPFILE" "$MONITOR_NAME" "$PORT" "$MAX_EVENTS" "$INTERVAL" "$WORKBENCH_DIR" &
+SERVER_PID=$!
+
+trap 'kill $SERVER_PID 2>/dev/null; wait $SERVER_PID 2>/dev/null; exit 0' INT TERM
+
+sleep 0.5
+open "http://localhost:${PORT}"
+wait $SERVER_PID

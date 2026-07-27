@@ -1,0 +1,15 @@
+{
+  "haltActive": false,
+  "consecutiveBlocks": 0,
+  "lastBlockTimestamp": "2026-07-26T19:37:34.918Z",
+  "recentEvents": [
+    {
+      "level": "block",
+      "trigger": "protected_path",
+      "message": "Protected path: .claude-plugin/plugin.json cannot be modified directly. This path is under compliance guard protection.",
+      "timestamp": "2026-07-26T19:37:34.918Z",
+      "toolName": "Write",
+      "filePath": ".claude-plugin/plugin.json"
+    }
+  ]
+}

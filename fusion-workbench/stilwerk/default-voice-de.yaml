@@ -1,0 +1,347 @@
+# Consulting & Strategy (German)
+# Professionelles, evidenzbasiertes Schreiben für Beratungs- und Strategiekontexte
+
+name: "Consulting & Strategy (German)"
+description: "Professionelle Beratungstexte auf Deutsch. These zuerst, evidenzbasiert, kalibriert. Verbindlich im Ton, ohne formelhaft oder steif zu wirken."
+
+whitelist:
+  - id: U01
+    name: "Satzlängenvarianz"
+    target: [14, 24]
+    instruction: |
+      Satzlänge in moderatem Rahmen variieren. Die meisten Sätze
+      liegen bei 14-24 Wörtern; gelegentliche kürzere Sätze (7-11 Wörter)
+      betonen zentrale Aussagen oder Empfehlungen. Weder Telegrammstil
+       noch akademische Schachtelsätze.
+
+  - id: U05
+    name: "Erste Person Plural"
+    target: [2, 6]
+    instruction: |
+      Analytisches "wir" verwenden: "unsere Analyse zeigt", "wir
+      beobachten", "in unseren Mandaten". "Ich" nur dort, wo persönliche
+      Zuschreibung inhaltlich relevant ist. Statt "Ich denke" lieber
+      "wir erwarten", "wir empfehlen", "die Evidenz spricht für".
+
+  - id: A01
+    name: "These zuerst"
+    instruction: |
+      Mit dem Befund, der Empfehlung oder dem Kernargument beginnen.
+      Begründung und Belege folgen. Abschnitte und Absätze sollen
+      top-down lesbar sein: Der erste Satz trägt die Aussage,
+      nachfolgende Sätze stützen oder qualifizieren sie. Pyramidenprinzip
+      als Default, nicht als starres Schema.
+
+  - id: A02
+    name: "Belegmuster"
+    instruction: |
+      Aussagen mit Konkretem unterfüttern: Daten, benannte Fälle,
+      beobachtbare Muster, Wirkmechanismen. Das Prinzip kann dem
+      Beispiel vorausgehen, wenn das Prinzip der eigentliche Punkt ist;
+      das Beispiel kann vorangehen, wenn der Leser das Muster erst
+      sehen muss. Reihenfolge folgt dem Lesebedürfnis, nicht der Formel.
+
+  - id: V03
+    name: "Kalibrierte epistemische Haltung"
+    instruction: |
+      Unterscheiden zwischen Gesichertem, Erschlossenem und Strittigem.
+      Hedges verwenden, die Kalibrierung signalisieren: "die Evidenz
+      deutet darauf hin", "in den meisten von uns beobachteten Fällen",
+      "dies gilt vermutlich dort, wo...". Weder falsche Gewissheit noch
+      reflexhaftes Relativieren, das Aussagen entleert.
+
+  - id: L03
+    name: "Präzise Fachbegriffe"
+    instruction: |
+      Den präzisen Begriff dem generischen vorziehen, wenn er Klarheit
+      schafft: "TOGAF-Capability-Modell" statt "Framework"; "Data
+      Lineage" statt "Datenfluss"; "Entscheidungsrechte" statt
+      "Verantwortlichkeiten". Begriffe bei gemischtem Publikum bei
+      erster Verwendung definieren. Projektinterne Codes und Kürzel
+      (Komponenten- oder Strategienamen wie S1, gate.go, must_not) beim
+      ersten Auftreten in drei bis fünf Wörtern erklären, auch vor
+      Fachpublikum: der Leser hält die Codes nicht ständig präsent.
+
+  - id: L06
+    name: "Deutsche Kontraktionen"
+    instruction: |
+      Natürliche Kontraktionen verwenden: im, am, zum, zur, vom, beim,
+      ans, aufs, ins. Diese sind auch im Beratungsregister Standard;
+      ihre Auflösung ("in dem", "zu der") wirkt gestelzt und nicht
+      formeller. Ausnahme: in Definitionen oder bei Hervorhebung des
+      bestimmten Artikels.
+
+  - id: R02
+    name: "Empfehlungsregister"
+    instruction: |
+      Empfehlungen sind im Ton direkt und im Inhalt qualifiziert.
+      "Wir empfehlen X, sofern Y gegeben ist." Weder unbedingte
+      Imperative ("Sie müssen") noch überqualifizierte Ausweichformeln
+      ("Sie könnten möglicherweise erwägen, eventuell zu prüfen").
+
+blacklist:
+  - id: K01
+    name: "Klauselketten und Kompression"
+    instruction: |
+      Nicht mehrere Gedanken in eine atemlose Klauselkette pressen. Ein
+      Hauptgedanke pro Satz; jeder Hauptpunkt ein vollständiger Satz mit
+      Subjekt und finitem Verb. Verblose Fragmente ("Recall top,
+      Precision leck") sind keine Sätze. Die Kompression (Klausel,
+      Fachkürzel, Klausel, zusammengepresster Grund, alles in einem
+      Atemzug) ist das Hauptsymptom unleserlicher Analyseprosa. Lieber
+      zwei klare Sätze als einen überladenen. Gilt für Fachpublikum
+      genauso: Dichte ersetzt keine Klarheit.
+    examples:
+      - "S1s Selektion findet hervorragend, diszipliniert aber nicht, Recall top, Precision leck, weil das Gate beim Boot-Flip wegfiel."
+      - "Deterministisches Post-Filter (Registry-validate, unknown droppen, must_not droppen, count-cap), S4s gate.go wiederverwenden, VOR dem Orderer."
+
+  - id: D01
+    name: "Übergangsdichte"
+    max: 0.3
+    instruction: |
+      Explizite Übergänge reduzieren. In gut strukturierten
+      Beratungstexten ergibt sich der logische Zusammenhang aus
+      Reihenfolge und Inhalt. Explizite Konnektoren ("jedoch",
+      "daher") nur für echte logische Wendepunkte verwenden, nicht
+      als Absatznähte.
+    examples:
+      - "Darüber hinaus"
+      - "Außerdem"
+      - "Des Weiteren"
+      - "Zusätzlich dazu"
+      - "Es sei darauf hingewiesen, dass"
+      - "Es ist erwähnenswert, dass"
+      - "Zusammenfassend lässt sich sagen"
+
+  - id: AI01
+    name: "Allgemeine KI-Phrasen"
+    instruction: "Charakteristische KI-Muster entfernen."
+    examples:
+      - "Es ist wichtig zu beachten"
+      - "Es ist erwähnenswert"
+      - "Lassen Sie uns eintauchen"
+      - "In diesem umfassenden Leitfaden"
+      - "Dieses leistungsstarke Werkzeug"
+      - "das Potenzial freisetzen"
+      - "auf die nächste Stufe heben"
+      - "Die Realität ist"
+      - "Die Wahrheit ist"
+      - "Es versteht sich von selbst"
+      - "Das heißt,"
+      - "Die wichtigste Erkenntnis"
+
+  - id: AI02
+    name: "Gedankenstrich-Übernutzung"
+    instruction: |
+      Gedankenstriche (–) für parenthetische Einschübe vermeiden.
+      Kommas, Klammern, Doppelpunkte oder Satzumstellung verwenden.
+      Maximal ein Gedankenstrich pro 1000 Wörter. Gedankenstriche
+      sind ein starkes KI-Signal und untergraben die Gravität
+      formaler Prosa.
+    examples:
+      - "der Befund – der vergangene Woche entstand – bestätigt sich"
+      - "drei Optionen – schnell, günstig, gut – davon zwei"
+      - "findet hervorragend, diszipliniert aber nicht — Recall top, Precision leck"
+      - "der Fix ist nicht 'besserer Prompt', sondern S4s Gate vor den Orderer ziehen"
+
+  - id: AI03
+    name: "Dramatische Selbstverständlichkeiten"
+    instruction: |
+      Bekanntes oder Offensichtliches nicht als Erkenntnis präsentieren.
+      Beratungsgewicht entsteht aus dem marginalen Mehrwert, nicht
+      aus der Wiederholung gemeinsamen Wissens. Keine eigenständigen
+      Ein-Satz-Absätze für Selbstverständlichkeiten.
+    examples:
+      - "Die digitale Transformation verändert, wie Unternehmen arbeiten."
+      - "Daten gewinnen zunehmend an Bedeutung."
+      - "Das Tempo des Wandels beschleunigt sich."
+      - "Das ändert alles."
+      - "Und das ist die zentrale Erkenntnis."
+
+  - id: AI04
+    name: "Mechanische Dreiergruppen"
+    instruction: |
+      Dreigliedrige Aufzählungen nicht als Default-Rhythmus nutzen.
+      "X, Y und Z" ist überstrapaziert. Zwei oder vier Glieder
+      verwenden, wenn die Zahl inhaltlich begründet ist; umstrukturieren,
+      wo die Parallelität erzwungen wirkt.
+    examples:
+      - "Menschen, Prozesse und Technologie"
+      - "schneller, besser, günstiger"
+      - "planen, umsetzen, optimieren"
+      - "agil, skalierbar und zukunftssicher"
+
+  - id: AI05
+    name: "Vage Pronominalverweise"
+    instruction: |
+      Sätze, die mit "Dies", "Das" oder "Hierbei" als unspezifischem
+      Rückverweis beginnen, reduzieren. Das Bezugswort benennen. Vage
+      Pronomen schwächen Beratungsaussagen und laden Fehlinterpretationen
+      ein.
+    examples:
+      - "Dies ist wichtig, weil..."
+      - "Das bedeutet, dass..."
+      - "Das ist der Schlüssel."
+
+  - id: AI06
+    name: "Füllintensifikatoren"
+    instruction: |
+      Leere Verstärker entfernen. In Beratungstexten beschädigen
+      Intensifikatoren ohne Beleg die Glaubwürdigkeit.
+    examples:
+      - "wirklich"
+      - "tatsächlich"
+      - "unglaublich"
+      - "äußerst"
+      - "extrem"
+      - "absolut"
+      - "fundamental"
+      - "grundlegend"
+      - "im Grunde"
+      - "im Wesentlichen"
+      - "letztendlich"
+      - "letztlich"
+      - "deutlich (ohne Quantifizierung)"
+      - "signifikant (ohne Quantifizierung)"
+
+  - id: AI07
+    name: "Rhetorische Frage-Antwort-Paare"
+    instruction: |
+      Rhetorische Fragen, die unmittelbar selbst beantwortet werden,
+      vermeiden. Die Aussage direkt formulieren. Das Frage-Antwort-Muster
+      ist ein häufiger KI-Rhythmus und wirkt im Beratungskontext
+      theatralisch.
+    examples:
+      - "Was bedeutet das? Es bedeutet..."
+      - "Warum ist das wichtig? Weil..."
+      - "Wie sollten Führungskräfte reagieren? Sie sollten..."
+
+  - id: AI08
+    name: "Struktur ankündigen"
+    instruction: |
+      Strukturelle oder rhetorische Schritte nicht vorab ankündigen.
+      Die Struktur soll das Argument tragen, nicht erklärt werden.
+    examples:
+      - "Lassen Sie mich erklären."
+      - "Der Punkt ist folgender:"
+      - "Hier ist der Grund:"
+      - "Die Antwort ist einfach:"
+      - "Es gibt drei Gründe:"
+      - "Im Folgenden werden wir zeigen, dass..."
+      - "Fassen wir zusammen"
+
+  - id: AI09
+    name: "Perfekter Parallelismus"
+    instruction: |
+      Perfekt parallele Strukturen über mehrere aufeinanderfolgende
+      Sätze oder Bullet Points vermeiden. Echte Autoren variieren
+      ihre Syntax. Perfekter Parallelismus signalisiert schablonenhafte
+      Generierung.
+    examples:
+      - "X macht A. Y macht B. Z macht C."
+      - "Erstens... Zweitens... Drittens..."
+
+  - id: AI10
+    name: "Beratungstypische KI-Phrasen"
+    instruction: "Charakteristische KI-Muster im Beratungston entfernen."
+    examples:
+      - "In der heutigen schnelllebigen Geschäftswelt"
+      - "Im digitalen Zeitalter"
+      - "Lassen Sie uns einen Blick darauf werfen"
+      - "Wie Sie sich vorstellen können"
+      - "Es ist von entscheidender Bedeutung"
+      - "Es gilt zu beachten"
+      - "Letztendlich geht es darum"
+      - "Am Ende des Tages"
+      - "Im Kern bedeutet das"
+      - "Vor diesem Hintergrund"
+      - "Mit Blick auf die Zukunft"
+      - "Die zentrale Erkenntnis lautet"
+
+  - id: L02
+    name: "Beratungs-Buzzwords"
+    instruction: |
+      Durch konkrete, spezifische Sprache ersetzen. Diese Begriffe
+      haben durch Überstrapazierung ihre analytische Bedeutung verloren
+      und signalisieren in ernsthaften Beratungstexten inhaltliche Leere.
+    examples:
+      - "ganzheitlich / holistisch"
+      - "nahtlos"
+      - "robust"
+      - "skalierbar (wo nicht gemessen)"
+      - "zukunftssicher / zukunftsfähig / zukunftsweisend"
+      - "nachhaltig (außerhalb von ESG-Kontexten)"
+      - "wertschöpfend / Wertschöpfung (wo unspezifisch)"
+      - "Mehrwert / Mehrwert schaffen"
+      - "auf Augenhöhe"
+      - "auf das nächste Level heben"
+      - "Synergien / Synergien heben"
+      - "Potenziale erschließen"
+      - "Best Practices (ohne benannte Quelle)"
+      - "Paradigmenwechsel"
+      - "Transformation gestalten / vorantreiben"
+      - "End-to-End (wo unspezifisch)"
+      - "schlüsselfertig"
+      - "weltweit führend / world-class"
+      - "innovative Lösung"
+      - "Game Changer"
+      - "Deep Dive"
+      - "Nordstern"
+      - "leverage / hebeln"
+
+  - id: L04
+    name: "Hohle Abstraktionen"
+    instruction: |
+      Abstraktionen vermeiden, die nahezu beliebig auflösbar sind.
+      Wenn ein Substantiv durch "Sachen" ersetzt werden könnte, ohne
+      dass der Satz an Bedeutung verliert, muss es konkretisiert werden.
+    examples:
+      - "Lösungen (welche Lösungen?)"
+      - "Fähigkeiten / Capabilities (welche?)"
+      - "Ergebnisse / Outcomes (welche?)"
+      - "Alignment (Alignment wovon, worauf?)"
+      - "Ansätze (welcher Ansatz?)"
+      - "Maßnahmen (welche Maßnahmen?)"
+
+  - id: L05
+    name: "Nominalstil-Überhang"
+    instruction: |
+      Nominalisierungen reduzieren, wo ein Verb klarer wäre. Deutsches
+      Beratungsdeutsch neigt zu Substantivketten ("die Durchführung
+      der Implementierung der Optimierung"), die Verantwortung und
+      Handlung verschleiern. Aktive Verben mit benanntem Subjekt
+      bevorzugen.
+    examples:
+      - "die Sicherstellung der Umsetzung"
+      - "die Ermöglichung der Befähigung"
+      - "die Durchführung der Bewertung"
+
+  - id: S01
+    name: "Schablonenstruktur"
+    instruction: |
+      Beratungstexte haben legitime strukturelle Konventionen
+      (Management Summary, Befunde, Empfehlungen). Diese nutzen, wo
+      sie dem Leser dienen. Nicht jeden Abschnitt oder Absatz in
+      Einleitung-Hauptteil-Schluss-Miniaturen zwängen. Absatzlängen
+      variieren.
+
+examples:
+  - path: ../examples/consulting-reference-de.md
+    note: "Starke deutschsprachige Beratungsreferenz einsetzen — etwa Beiträge aus Harvard Business Manager, Strategy&-Veröffentlichungen, oder eigene Fusion/Beyond-Agile-Texte"
+    extract: true
+    include: true
+    weight: 1.0
+
+anti_examples:
+  - path: ../examples/corporate-memo-de.md
+    note: "Steif, buzzword-lastig, unpersönlich"
+    include: true
+
+  - path: ../examples/ai-generated-de.md
+    note: "Überstrukturiert, schematisch, unpersönlich"
+    include: true
+
+settings:
+  fit_threshold: 0.85
+  max_iterations: 5
+  excerpt_length: 500

@@ -1,0 +1,286 @@
+# Consulting & Strategy - Professional Voice
+# Authoritative, evidence-grounded writing for advisory and strategic contexts
+
+name: "Consulting & Strategy - Professional Voice"
+description: "Professional advisory writing. Thesis-first, evidence-grounded, calibrated. Authoritative without being stiff or formulaic."
+
+# Patterns to ENCOURAGE
+whitelist:
+  - id: U01
+    name: "Sentence variance"
+    target: [12, 22]
+    instruction: |
+      Vary sentence length within a moderate range. Most sentences run
+      12-22 words; occasional shorter sentences (6-10 words) provide
+      emphasis on key claims or recommendations. Avoid both wire-service
+      brevity and academic sprawl.
+
+  - id: L06
+    name: "Contractions"
+    target: [0.0, 0.15]
+    instruction: |
+      Use contractions sparingly. Default to expanded forms ("do not",
+      "it is", "we are"). Occasional contractions are acceptable in
+      explanatory passages but not in conclusions, recommendations, or
+      definitional statements.
+
+  - id: U05
+    name: "First person"
+    target: [2, 6]  # per 1000 words
+    instruction: |
+      Use first person plural ("we", "our") for analytical voice and
+      collective experience: "our analysis suggests", "we observe", "in
+      our work with clients". Avoid "I think" in favor of "we expect",
+      "we recommend", "the evidence indicates". First person singular
+      only where personal attribution genuinely matters.
+
+  - id: A01
+    name: "Thesis-first structure"
+    instruction: |
+      Lead with the claim, recommendation, or main finding. Supporting
+      reasoning and evidence follow. Sections and paragraphs should be
+      readable top-down: the first sentence carries the load; subsequent
+      sentences justify or qualify it. Apply the pyramid principle as a
+      default, not a rigid template.
+
+  - id: A02
+    name: "Evidence pattern"
+    instruction: |
+      Ground claims in specifics: data, named cases, observable patterns,
+      mechanism. The principle may precede the example when the principle
+      is the point; the example may precede the principle when the reader
+      needs to see the pattern before naming it. Order follows reader
+      need, not formula.
+
+  - id: V03
+    name: "Calibrated epistemic stance"
+    instruction: |
+      Distinguish what is known, what is inferred, and what is contested.
+      Use hedges that signal calibration: "the evidence suggests", "in
+      most engagements we have seen", "this likely applies where...".
+      Avoid both false certainty and reflexive hedging that drains
+      meaning from claims.
+
+  - id: L03
+    name: "Precise terminology"
+    instruction: |
+      Prefer the precise term to the generic one when it improves clarity:
+      "TOGAF capability model" over "framework"; "data lineage" over
+      "data flow"; "decision rights" over "responsibilities". Define
+      terms on first use if the audience is mixed. Gloss project-internal
+      codes and abbreviations (component or strategy names like S1,
+      gate.go, must_not) in three to five words on first use, even for
+      expert readers who do not hold the codes in working memory.
+
+  - id: R02
+    name: "Recommendation register"
+    instruction: |
+      Recommendations are direct in tone and qualified in content. "We
+      recommend X, contingent on Y." Avoid unhedged imperatives ("you
+      must") as well as over-qualified evasions ("you might perhaps want
+      to consider possibly").
+
+# Patterns to ELIMINATE
+blacklist:
+  - id: K01
+    name: "Clause-chains and compression"
+    instruction: |
+      Do not pack several ideas into one breathless clause-chain. One
+      main idea per sentence; each main point a complete sentence with a
+      subject and a finite verb. Verbless fragments ("Recall top,
+      precision leaks") are not sentences. The compression (clause,
+      jargon code, clause, crushed-in reason, all in one breath) is the
+      main symptom of unreadable analysis prose. Two clear sentences beat
+      one overloaded one. This holds for expert audiences too: density is
+      not clarity.
+    examples:
+      - "S1's selection finds well but does not discipline, recall top, precision leaks because the gate fell out at the boot-flip."
+      - "Deterministic post-filter (registry-validate, drop unknown, drop must_not, count-cap), reuse S4's gate.go, BEFORE the orderer."
+
+  - id: D01
+    name: "Transition density"
+    max: 0.3
+    instruction: |
+      Reduce explicit transitions. In well-structured advisory writing,
+      logical connection emerges from sequence and content. Reserve
+      explicit transitions ("however", "therefore") for genuine logical
+      pivots, not paragraph seams.
+    examples:
+      - "Furthermore"
+      - "Additionally"
+      - "Moreover"
+      - "In addition to this"
+      - "It is important to note that"
+      - "It is worth mentioning"
+
+  - id: AI01
+    name: "AI phrases"
+    instruction: "Remove characteristic AI patterns."
+    examples:
+      - "Let us dive into"
+      - "Let us explore"
+      - "In this comprehensive analysis"
+      - "In today's rapidly evolving landscape"
+      - "It is crucial to understand"
+      - "This powerful framework"
+      - "game-changer"
+      - "unlock value"
+      - "take it to the next level"
+      - "At the end of the day"
+      - "When it comes to"
+      - "That said,"
+      - "Moving forward"
+      - "The key takeaway"
+      - "navigate the complexities"
+
+  - id: AI02
+    name: "Em-dash overuse"
+    instruction: |
+      Avoid em-dashes (—) for parenthetical asides. Use commas,
+      parentheses, colons, or restructure. Maximum one per 1000 words.
+      Em-dashes are a strong AI tell and reduce the gravity of formal
+      prose.
+    examples:
+      - "finds well but does not discipline — recall top, precision leaks"
+      - "the fix is not 'a better prompt' but pulling S4's gate before the orderer"
+
+  - id: AI03
+    name: "Dramatic obviousness"
+    instruction: |
+      Do not present obvious or well-known statements as findings.
+      Advisory weight depends on the marginal insight, not on restating
+      common ground. No standalone paragraphs for truisms.
+    examples:
+      - "Digital transformation is changing how businesses operate."
+      - "Data is increasingly important."
+      - "The pace of change is accelerating."
+      - "This changes everything."
+
+  - id: AI04
+    name: "Mechanical tricolons"
+    instruction: |
+      Avoid three-item parallel lists as default rhythm. "X, Y, and Z"
+      is overused. Use two or four items where the count is genuine;
+      restructure where the parallelism is forced.
+    examples:
+      - "people, process, and technology"
+      - "faster, cheaper, and better"
+      - "align, engage, and deliver"
+
+  - id: AI05
+    name: "This/That starters"
+    instruction: |
+      Reduce sentences starting with "This" or "That" as vague referents.
+      Name the antecedent. Vague pronouns weaken advisory claims and
+      invite reader misinterpretation.
+
+  - id: AI06
+    name: "Filler intensifiers"
+    instruction: |
+      Remove empty intensifiers. In advisory writing, intensifiers
+      without supporting evidence degrade credibility.
+    examples:
+      - "truly"
+      - "really"
+      - "incredibly"
+      - "extremely"
+      - "absolutely"
+      - "fundamentally"
+      - "essentially"
+      - "significantly (without quantification)"
+
+  - id: AI07
+    name: "Rhetorical Q+A"
+    instruction: |
+      Avoid rhetorical questions followed by their own answers. State
+      the claim directly. Rhetorical Q+A is a common AI rhythm and
+      reads as theatrical in advisory contexts.
+    examples:
+      - "What does this mean? It means..."
+      - "Why does this matter? Because..."
+      - "How should leaders respond? They should..."
+
+  - id: AI08
+    name: "Structural telegraphing"
+    instruction: |
+      Do not announce structure or rhetorical moves in advance. Let the
+      structure deliver the argument.
+    examples:
+      - "Let me explain."
+      - "Here is the thing:"
+      - "There are three reasons:"
+      - "In what follows, we will argue that..."
+
+  - id: AI09
+    name: "Perfect parallelism"
+    instruction: |
+      Avoid perfectly parallel structures across consecutive sentences
+      or bullets. Genuine writing varies syntax. Perfect parallelism
+      signals templated generation.
+
+  - id: L02
+    name: "Consulting buzzwords"
+    instruction: |
+      Replace with concrete, specific language. These terms have lost
+      analytical meaning through overuse and signal lack of substance
+      in serious advisory writing.
+    examples:
+      - "leverage (as verb)"
+      - "synergy / synergies"
+      - "paradigm shift"
+      - "best practices (use 'established practice' with named source)"
+      - "robust"
+      - "scalable (where unmeasured)"
+      - "enterprise-grade"
+      - "cutting-edge"
+      - "world-class"
+      - "holistic"
+      - "seamless"
+      - "value-add"
+      - "deep dive"
+      - "north star"
+      - "drive transformation"
+
+  - id: L04
+    name: "Hollow abstractions"
+    instruction: |
+      Avoid abstractions that could mean almost anything. If a noun
+      could be replaced with "stuff" without changing the sentence's
+      meaning, it needs replacement.
+    examples:
+      - "solutions (which solutions?)"
+      - "capabilities (which capabilities?)"
+      - "outcomes (which outcomes?)"
+      - "alignment (alignment of what, on what?)"
+
+  - id: S01
+    name: "Templated structure"
+    instruction: |
+      Advisory documents often have legitimate structural conventions
+      (executive summary, findings, recommendations). Follow them where
+      they serve the reader. Do not force every section or paragraph
+      into intro-body-conclusion miniatures. Vary paragraph length.
+
+# Example texts (hybrid: extract + include)
+examples:
+  - path: ../examples/consulting-reference.md
+    note: "Swap in a strong advisory reference: HBR analytical pieces, McKinsey Quarterly, BCG long-form insights, or your own published Fusion/Beyond Agile material"
+    extract: true
+    include: true
+    weight: 1.0
+
+# Anti-examples
+anti_examples:
+  - path: ../examples/corporate-memo.md
+    note: "Stiff, buzzword-heavy, impersonal"
+    include: true
+
+  - path: ../examples/ai-generated.md
+    note: "Over-structured, formulaic, impersonal"
+    include: true
+
+# Settings
+settings:
+  fit_threshold: 0.85
+  max_iterations: 5
+  excerpt_length: 500

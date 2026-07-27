@@ -13,6 +13,5 @@
 .DS_Store
 Thumbs.db
 
-# fusion orchestration workbench + personal scratch (not part of the shippable plugin)
-fusion-workbench/
+# personal scratch (not part of the shippable plugin)
 fusion-steps.txt

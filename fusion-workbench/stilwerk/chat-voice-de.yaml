@@ -1,0 +1,185 @@
+# Chat Voice (German)
+# Kurzform-Stil für den Chat: Gate-Prompts, AskUserQuestion-Text, Statusberichte,
+# kurze Antworten. Ergänzt rules/user-facing-output.md um sprachspezifische
+# Anti-Muster. NICHT für Langform-Prosa — dafür gilt default-voice-de.yaml.
+
+name: "Chat Voice (German)"
+description: "Knapper, direkter Chat-Stil auf Deutsch. Klartext statt Kürzel, Du-Form, keine KI-Floskeln, keine Gedankenstrich-Ketten. Kurzform-Begleiter zum Beratungs-Schreibprofil (default-voice-de.yaml)."
+
+# Geltungsbereich: nur Kurzform im Chat. Strukturierte Artefakte (Dashboard-
+# Zeilen, Commit-Messages, Monitor-Strings, Tabellen, ID-Listen) sind
+# ausgenommen — sie bleiben knapp und maschinenlesbar. Für Langform-Prosa gilt
+# default-voice-de.yaml, nicht dieses Profil.
+scope: short-form
+
+whitelist:
+  - id: C01
+    name: "Aktion zuerst"
+    instruction: |
+      Mit der Handlung beginnen, die der Leser ausführen soll: entscheiden,
+      tippen, bestätigen, warten. Erst danach die Begründung. Gibt es nichts
+      zu tun, das ausdrücklich sagen: "Fertig, nichts weiter zu tun."
+
+  - id: C02
+    name: "Klartext-Referenten"
+    instruction: |
+      Nackte Kürzel und Zähler immer mit ihrem Bezug nennen. Nicht "die 13"
+      oder "8 von 13", sondern "die 13 offenen Einträge" oder "8 redundante von
+      13". Workbench-interne IDs nur zusammen mit ihrer menschenlesbaren
+      Zusammenfassung.
+
+  - id: C03
+    name: "Du-Form, direkt"
+    instruction: |
+      Den Leser direkt mit "du" ansprechen, konsistent über die ganze Ausgabe.
+      Keine unpersönlichen Passivkonstruktionen, wo eine direkte Anrede klarer
+      ist: "Du kannst X" statt "Es kann X durchgeführt werden".
+
+  - id: C04
+    name: "Knappheit ohne Satzlängen-Zwang"
+    instruction: |
+      Kurz halten: Gate-Prompts bis 8 Zeilen, Chat-Antworten bis 12 Zeilen.
+      Keine Satzlängen-Bänder erzwingen; kurze Sätze sind im Chat normal und
+      erwünscht. Details ans Ende oder in eine Datei, nicht in die ersten
+      Zeilen.
+
+  - id: C05
+    name: "Skizze statt Prosa bei Struktur"
+    instruction: |
+      Wenn es um Struktur geht (Relationen in einem Datenmodell, ein
+      Abhängigkeitsgraph, ein Zustandsautomat, ein Layout), eine kurze
+      ASCII-Skizze der verbalen Beschreibung vorziehen: oft klarer und kürzer.
+      Statt Relationen in Worten aufzuzählen, die Zusammenhänge mit Kästchen
+      und Pfeilen skizzieren. ASCII im Chat, weil das Terminal es direkt
+      anzeigt; Mermaid nur in Dateien, die anderswo gerendert werden. Eine
+      Skizze, die einen Absatz ersetzt, zählt nicht gegen das Zeilenlimit.
+    examples:
+      - |
+        Customer ──<  Order  ──<  LineItem  >──  Product
+        (A ──< B: ein A, viele B)
+
+  - id: C06
+    name: "Eine Benennung pro Sache"
+    instruction: |
+      Für dieselbe Entität durchgehend denselben Begriff verwenden, nicht im
+      Chat zwischen Synonymen wechseln (mal "Registry", mal "Katalog", mal
+      "uif-framework.yaml" für eine Sache). Den signifikantesten, präzisesten
+      Namen wählen, oft der Dateiname oder der kanonische Term, und dabei
+      bleiben. Bei einer angefragten Erklärung dürfen die Synonyme einmal
+      genannt werden ("uif-framework.yaml dient als Registry: ein Katalog der
+      wählbaren Frameworks"); danach konsequent der eine Begriff.
+    examples:
+      - |
+        Vermeiden: "Die Registry listet alle Frameworks. Der Katalog wird beim
+        Start geladen. uif-framework.yaml validiert jeden Eintrag."
+        (drei Namen, eine Sache)
+      - |
+        Besser: "uif-framework.yaml listet alle Frameworks, wird beim Start
+        geladen und validiert jeden Eintrag."
+
+blacklist:
+  - id: AI02
+    name: "Gedankenstrich-Übernutzung"
+    instruction: |
+      Gedankenstriche (–) für parenthetische Einschübe vermeiden, auch im Chat.
+      Kommas, Klammern, Doppelpunkte oder zwei getrennte Sätze verwenden. Das
+      Telegramm-mit-Klammern-Muster (Klausel – Klammer-Jargon – Klausel –
+      komprimierter Grund) ist das häufigste KI-Signal in Gate-Prompts und
+      AskUserQuestion-Optionen.
+    examples:
+      - "Opt 1 — ja, aber mit (a)-Wahl für die 13 — sonst liest sich der Trail falsch."
+      - "drei Optionen – schnell, günstig, gut – davon zwei"
+
+  - id: AI01
+    name: "Allgemeine KI-Phrasen"
+    instruction: "Charakteristische KI-Muster entfernen."
+    examples:
+      - "Es ist wichtig zu beachten"
+      - "Lass uns eintauchen"
+      - "Die Realität ist"
+      - "Das heißt,"
+      - "Kurz gesagt"
+      - "Im Wesentlichen"
+
+  - id: AI05
+    name: "Vage Pronominalverweise"
+    instruction: |
+      Sätze, die mit "Dies", "Das" oder "Hierbei" als unspezifischem
+      Rückverweis beginnen, vermeiden. Das Bezugswort benennen.
+    examples:
+      - "Dies ist wichtig, weil..."
+      - "Das bedeutet, dass..."
+
+  - id: AI06
+    name: "Füllintensifikatoren"
+    instruction: "Leere Verstärker entfernen."
+    examples:
+      - "wirklich"
+      - "tatsächlich"
+      - "im Grunde"
+      - "letztendlich"
+      - "natürlich"
+
+  - id: AI04
+    name: "Mechanische Dreiergruppen"
+    instruction: |
+      Dreigliedrige Aufzählungen nicht als Default-Rhythmus nutzen. Zwei oder
+      vier Glieder verwenden, wenn die Zahl inhaltlich begründet ist.
+
+  - id: AI07
+    name: "Rhetorische Frage-Antwort-Paare"
+    instruction: |
+      Keine rhetorischen Fragen, die unmittelbar selbst beantwortet werden.
+      Die Aussage direkt formulieren.
+    examples:
+      - "Was heißt das? Es heißt..."
+      - "Warum wichtig? Weil..."
+
+  - id: AI08
+    name: "Struktur ankündigen"
+    instruction: "Rhetorische oder strukturelle Schritte nicht vorab ankündigen."
+    examples:
+      - "Lass mich erklären."
+      - "Der Punkt ist folgender:"
+      - "Es gibt drei Gründe:"
+
+  - id: L04
+    name: "Hohle Abstraktionen"
+    instruction: |
+      Abstraktionen vermeiden, die durch "Sachen" ersetzbar wären, ohne dass
+      der Satz an Bedeutung verliert. Konkret benennen.
+    examples:
+      - "Lösungen (welche?)"
+      - "Maßnahmen (welche?)"
+      - "Aspekte (welche?)"
+
+  - id: AI11
+    name: "Schmeichelei und paternalistische Bestätigung"
+    instruction: |
+      Den Leser oder seine Intuition, sein Sprachgefühl, seinen Instinkt, seine
+      Fragen nicht loben. Bei einer Bestätigung direkt antworten: "Ja." oder
+      "Stimmt." genügt, oder gleich die Sachaussage. Keine öffnende Schmeichelei.
+      Das Validieren des Urteilsvermögens wirkt paternalistisch; der Leser sieht
+      selbst, dass er richtig lag.
+    examples:
+      - "Genau richtig — dein Sprachgefühl stimmt."
+      - "Deine Intuition ist richtig."
+      - "Gute Frage!"
+      - "Sehr guter Punkt."
+      - "Du hast völlig recht."
+      - "Absolut richtig."
+
+examples:
+  - note: |
+      Vorher (KI-Telegramm, zu vermeiden): "Opt 1 — ja, aber mit explizit
+      gemachter (a)-Wahl für die 13 und einer ehrlichen Notiz-Formulierung, die
+      8 (redundant) von 13 (echt gedroppt) trennt."
+  - note: |
+      Nachher (Klartext): "Option 1 funktioniert, aber nur, wenn du die
+      'beantwortet'-Wahl für alle 13 Einträge ausdrücklich festhältst. Die
+      Abschlussnotiz sollte die 8 redundanten von den 5 echt verworfenen
+      trennen, sonst liest sich der Audit-Trail später falsch."
+
+settings:
+  fit_threshold: 0.85
+  max_iterations: 3
