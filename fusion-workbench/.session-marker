@@ -1,5 +1,0 @@
-# Fusion active-session marker. mtime is the heartbeat.
-# Removed on clean shutdown; refreshed at each orchestrator Turn.
-agent: fusion:orchestrator
-started_at: 2026-07-27T14:36:36Z
-cwd: /Users/kai/Dropbox/qboot/projects.4fun/260726-rust-callscope

@@ -15,3 +15,11 @@ Thumbs.db
 
 # personal scratch (not part of the shippable plugin)
 fusion-steps.txt
+
+# fusion workbench runtime/session state — rewritten by hooks every session.
+# Durable artifacts (circles/, shared/, portfolio, tasklist, stilwerk) stay tracked.
+fusion-workbench/.guard-state/
+fusion-workbench/.session-marker
+fusion-workbench/agentstate.yaml
+fusion-workbench/orchestrator-live.md
+fusion-workbench/orchestrator-events.jsonl
